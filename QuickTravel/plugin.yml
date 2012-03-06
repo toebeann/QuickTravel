@@ -1,6 +1,6 @@
 name: QuickTravel
 main: com.live.toadbomb.QuickTravel.QuickTravel
-version: 0.3.1
+version: 0.3.2
 description: >
              Allows for fast multi-destination point-to-point travel with optional fees.
 commands:
