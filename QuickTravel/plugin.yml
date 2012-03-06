@@ -1,0 +1,53 @@
+name: QuickTravel
+main: com.live.toadbomb.QuickTravel.QuickTravel
+version: 0.3
+description: >
+             Allows for fast multi-destination point-to-point travel with optional fees.
+commands:
+  qt:
+    description: Provides access to the QuickTravel plugin.
+    usage: /qt <location> - Warps you to the specified <location> if valid.
+    permission: qt.user
+    permission-message: You are not authorised to use this command.
+permissions:
+  qt.admin.*:
+    description: Gives access to all QuickTravel admin commands.
+    default: op
+    children:
+      qt.user: true
+      qt.admin.create: true
+      qt.admin.range: true
+      qt.admin.dest: true
+      qt.admin.update: true
+      qt.admin.enable: true
+      qt.admin.disable: true
+      qt.admin.rename: true
+      qt.admin.charge: true
+  qt.admin.create:
+    description: Gives access to /qt create
+    default: false
+  qt.admin.range:
+    description: Gives access to /qt range
+    default: false
+  qt.admin.dest:
+    description: Gives access to /qt dest
+    default: false
+  qt.admin.update:
+    description: Gives access to /qt update
+    default: false
+  qt.admin.enable:
+    description: Gives access to /qt enable
+    default: false
+  qt.admin.disable:
+    description: Gives access to /qt disable
+    default: false
+  qt.admin.rename:
+    description: Gives access to /qt rename
+    default: false
+  qt.admin.charge:
+    description: Gives access to /qt create
+    default: false
+  qt.user:
+    description: Enables use of the QuickTravel plugin.
+    default: false
+depend: [Vault]
