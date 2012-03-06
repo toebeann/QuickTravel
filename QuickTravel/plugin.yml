@@ -1,6 +1,6 @@
 name: QuickTravel
 main: com.live.toadbomb.QuickTravel.QuickTravel
-version: 0.3
+version: 0.3.1
 description: >
              Allows for fast multi-destination point-to-point travel with optional fees.
 commands:
@@ -23,6 +23,7 @@ permissions:
       qt.admin.disable: true
       qt.admin.rename: true
       qt.admin.charge: true
+      qt.use.*: true
   qt.admin.create:
     description: Gives access to /qt create
     default: false
@@ -46,6 +47,9 @@ permissions:
     default: false
   qt.admin.charge:
     description: Gives access to /qt create
+    default: false
+  qt.use.*:
+    description: Gives player permission to use/discover all QTs
     default: false
   qt.user:
     description: Enables use of the QuickTravel plugin.

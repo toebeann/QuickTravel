@@ -3,3 +3,4 @@ height-modifier: 2
 enabled-by-default: true
 locations-must-be-discovered: true
 withdraw-from-player-not-bank: true
+players-need-permissions: false

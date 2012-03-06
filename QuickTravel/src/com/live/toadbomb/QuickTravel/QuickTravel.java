@@ -47,6 +47,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		this.getConfig().addDefault("enabled-by-default", true);
 		this.getConfig().addDefault("locations-must-be-discovered", true);
 		this.getConfig().addDefault("withdraw-from-player-not-bank", true);
+		this.getConfig().addDefault("players-need-permissions", false);
 		this.getConfig().options().copyDefaults(true);
 		this.saveConfig();
 		getServer().getPluginManager().registerEvents(this, this);
@@ -60,7 +61,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		if(getConfig().getBoolean("locations-must-be-discovered") == true) {
 			Player p = event.getPlayer();
 			String qt = checkPlayerQT(p);
-			if(qt != null) {
+			if(qt != null && playerHasPermission(p, qt)) {
 				boolean discovered = false;
 				@SuppressWarnings("unchecked")
 				List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(qt) + ".discovered-by");
@@ -111,7 +112,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 										ListIterator<Object> dli = dList.listIterator();
 										while(dli.hasNext()) {
 											String dv = dli.next().toString();
-											if(dv.equalsIgnoreCase(sender.getName())) {
+											if(dv.equalsIgnoreCase(sender.getName()) && playerHasPermission(p, args[0])) {
 												if(pWorld.equals(locWorld)) {
 													double c = getLocations().getInt("locations." + getLocation(args[0]) + ".charge-from." + qt);
 													
@@ -122,97 +123,28 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							                            	} else {
 							                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
 							                            	}
-							                                sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + args[0] + ChatColor.BLUE + " for " + ChatColor.GOLD + c + ChatColor.BLUE + "...");
-							                                World w = p.getWorld();
-							                                if(getLocations().getString("locations." + getLocation(args[0]) + ".coords.dest") != null) {
-							                                  int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.x");
-							                                  int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.y");
-							                                  int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.z");
-							                                  int pitch = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.pitch");
-							                                  int yaw = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.yaw");
-							                                  Location dest = new Location(w, x, y, z, yaw, pitch);
-							                                  p.teleport(dest);
-							                                } else {
-							                                  int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.x");
-							                                  int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.y");
-							                                  int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.z");
-							                                  Location dest = new Location(w, x, y, z);
-							                                  p.teleport(dest);
-															}
+							                            	QT(sender, args[0], c);
+							                                return true;
 							                            } else {
 							                                sender.sendMessage("You do not have enough money to go there.");
 							                                return true;
 														}
 													} else {
-														sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + args[0] + ChatColor.BLUE + "...");
-														World w = p.getWorld();
-														if(getLocations().getString("locations." + getLocation(args[0]) + ".coords.dest") != null) {
-															int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.x");
-															int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.y");
-															int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.z");
-															int pitch = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.pitch");
-															int yaw = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.yaw");
-															Location dest = new Location(w, x, y, z, yaw, pitch);
-															p.teleport(dest);
-														} else {
-															int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.x");
-															int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.y");
-															int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.z");
-															Location dest = new Location(w, x, y, z);
-															p.teleport(dest);
-														}
+														QT(sender, args[0], c);
 														return true;
 													}
 												} else {
 													sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] You are not on the correct World!");
-												}
+													return true;
+												}												
+											} else {
+												unknownQT(sender, args[0], qt);
+												return true;
 											}
 										}
 									} else {
-										sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
-										sender.sendMessage(ChatColor.BLUE + "From here you can QuickTravel to:");
-										int destinations = 0;
-										List<Object> locList = (List<Object>) getLocations().getList("list");
-										if(locList != null) {
-											ListIterator<Object> li = locList.listIterator();
-											while(li.hasNext()) {
-												String v = li.next().toString();
-												if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
-													String w = getLocations().getString("locations." + v + ".world");
-													int c = getLocations().getInt("locations." + v + ".charge-from." + qt);
-													
-													if(pWorld.equals(w) && qt != getLocationName(v)) {
-														if(getConfig().getBoolean("locations-must-be-discovered") == true) {
-															List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
-															if(newDList != null) {
-																ListIterator<Object> ndli = newDList.listIterator();
-																while(ndli.hasNext()) {
-																	String ndv = ndli.next().toString();
-																	if(ndv.equalsIgnoreCase(sender.getName())) {
-																		if(c > 0) {
-																			sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
-																		} else {
-																			sender.sendMessage(ChatColor.AQUA + getLocationName(v));
-																		}
-																		destinations++;
-																	}
-																}
-															}
-														} else {
-															if(c > 0) {
-																sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
-															} else {
-																sender.sendMessage(ChatColor.AQUA + getLocationName(v));
-															}
-															destinations++;
-														}
-													}
-												}
-											}
-											if(destinations == 0) {
-												sender.sendMessage("You cannot QuickTravel anywhere yet.");
-											}
-										}
+										unknownQT(sender, args[0], qt);
+										return true;
 									}
 								} else {
 									if(pWorld.equals(locWorld)) {
@@ -225,45 +157,14 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				                            	} else {
 				                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
 				                            	}
-						                        sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + args[0] + ChatColor.BLUE + " for " + ChatColor.GOLD + c + ChatColor.BLUE + "...");
-						                        World w = p.getWorld();
-						                        if(getLocations().getString("locations." + getLocation(args[0]) + ".coords.dest") != null) {
-						                          int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.x");
-						                          int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.y");
-						                          int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.z");
-						                          int pitch = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.pitch");
-						                          int yaw = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.yaw");
-						                          Location dest = new Location(w, x, y, z, yaw, pitch);
-						                          p.teleport(dest);
-						                        } else {
-						                          int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.x");
-						                          int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.y");
-						                          int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.z");
-						                          Location dest = new Location(w, x, y, z);
-						                          p.teleport(dest);
-												}
+						                        QT(sender,  args[0], c);
+						                        return true;
 											} else {
 						                        sender.sendMessage("You do not have enough money to go there.");
 						                        return true;
 											}
 										} else {
-											sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + args[0] + ChatColor.BLUE + "...");
-											World w = p.getWorld();
-											if(getLocations().getString("locations." + getLocation(args[0]) + ".coords.dest") != null) {
-												int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.x");
-												int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.y");
-												int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.z");
-												int pitch = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.pitch");
-												int yaw = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.dest.yaw");
-												Location dest = new Location(w, x, y, z, yaw, pitch);
-												p.teleport(dest);
-											} else {
-												int x = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.x");
-												int y = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.y");
-												int z = getLocations().getInt("locations." + getLocation(args[0]) + ".coords.primary.z");
-												Location dest = new Location(w, x, y, z);
-												p.teleport(dest);
-											}
+											QT(sender, args[0], c);
 											return true;
 										}
 									} else {
@@ -321,52 +222,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							}	
 						} else {
 							// If destination is invalid:
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
-							sender.sendMessage(ChatColor.BLUE + "From here you can QuickTravel to:");
-							int destinations = 0;
-							List<Object> locList = (List<Object>) getLocations().getList("list");
-							if(locList != null) {
-								ListIterator<Object> li = locList.listIterator();
-								while(li.hasNext()) {
-									String v = li.next().toString();
-									if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
-										String w = getLocations().getString("locations." + v + ".world");
-										int c = getLocations().getInt("locations." + v + ".charge-from." + qt);
-										Player p = (Player)sender;
-										String pWorld = p.getWorld().getName();
-										
-										if(pWorld.equals(w) && qt != getLocationName(v)) {
-											if(getConfig().getBoolean("locations-must-be-discovered") == true) {
-												List<Object> dList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
-												if(dList != null) {
-													ListIterator<Object> dli = dList.listIterator();
-													while(dli.hasNext()) {
-														String dv = dli.next().toString();
-														if(dv.equalsIgnoreCase(sender.getName())) {
-															if(c > 0) {
-																sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
-															} else {
-																sender.sendMessage(ChatColor.AQUA + getLocationName(v));
-															}
-															destinations++;
-														}
-													}
-												}
-											} else {
-												if(c > 0) {
-													sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
-												} else {
-													sender.sendMessage(ChatColor.AQUA + getLocationName(v));
-												}
-												destinations++;
-											}
-										}
-									}
-								}
-								if(destinations == 0) {
-									sender.sendMessage("You cannot QuickTravel anywhere yet.");
-								}
-							}
+							unknownQT(sender, args[0], qt);
+							return true;
 						}						
 					} else {
 						sender.sendMessage(ChatColor.BLUE + "You are already at " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
@@ -400,9 +257,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							this.saveLocations();
 							sender.sendMessage("Travel location " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " created.");
 						} else if(checkLocations(args[1]) == true) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " already exists!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " already exists!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not create: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -424,12 +281,12 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								this.saveLocations();
 								sender.sendMessage("Range for location " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " set.");								
 							} else {
-								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] You are not on the correct World!");
+								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set range: " + ChatColor.GOLD + "You are not on the correct World!");
 							}
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set range: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set range: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -453,12 +310,12 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								this.saveLocations();
 								sender.sendMessage("Destination for location " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " set.");								
 							} else {
-								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] You are not on the correct World!");
+								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set dest: " + ChatColor.GOLD + "You are not on the correct World!");
 							}
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set dest" + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set dest: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -480,12 +337,12 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								this.saveLocations();
 								sender.sendMessage("Updated primary coords of location " + ChatColor.AQUA + args[1] + ChatColor.WHITE + ".");
 							} else {
-								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] You are not on the correct World!");
+								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not update: " + ChatColor.GOLD + "You are not on the correct World!");
 							}
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not update: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not update: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -500,9 +357,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							this.saveLocations();
 							sender.sendMessage(ChatColor.AQUA + args[1] + ChatColor.WHITE + " is now enabled!");
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not enable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not enable: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -517,9 +374,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							this.saveLocations();
 							sender.sendMessage(ChatColor.AQUA + args[1] + ChatColor.WHITE + " is now disabled!");
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not disable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not disable: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -539,11 +396,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							this.saveLocations();
 							sender.sendMessage(ChatColor.AQUA + args[1] + ChatColor.WHITE + " has been renamed to " + ChatColor.AQUA + args[2]);
 						} else if(checkLocations(args[1]) == false) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not rename: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 						} else if(checkLocations(args[1]) == true && checkLocations(args[2]) == true) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Cannot rename " + ChatColor.AQUA + args[1] + ChatColor.WHITE + ", " + ChatColor.AQUA + args[2] + ChatColor.WHITE + " already exists!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not rename: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " already exists!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not rename: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -563,11 +420,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							this.saveLocations();
 							sender.sendMessage("Set charge from " + ChatColor.AQUA + args[2] + ChatColor.WHITE + " to " + ChatColor.AQUA + args[3] + ChatColor.WHITE + " to " + ChatColor.GOLD + args[1]);
 						} else if(checkLocations(args[2]) != true) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[2] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set charge: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " does not exist!");
 						} else if(checkLocations(args[3]) != true) {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.AQUA + args[3] + ChatColor.WHITE + " does not exist!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set charge: " + ChatColor.AQUA + args[3] + ChatColor.GOLD + " does not exist!");
 						} else {
-							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] " + ChatColor.WHITE + "Unexpected error!");
+							sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not set charge: " + ChatColor.GOLD + "Unexpected error!");
 						}
 						return true;
 					} else {
@@ -599,7 +456,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								Player p = (Player)sender;
 								String pWorld = p.getWorld().getName();
 								
-								if(pWorld.equals(w) && qt != getLocationName(v)) {
+								if(pWorld.equals(w) && qt != getLocationName(v) && playerHasPermission(p, v)) {
 									if(getConfig().getBoolean("locations-must-be-discovered") == true) {
 										List<Object> dList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
 										if(dList != null) {
@@ -623,7 +480,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 											sender.sendMessage(ChatColor.AQUA + getLocationName(v));
 										}
 										destinations++;
-									}
+									}										
 								}
 							}
 						}
@@ -656,6 +513,82 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		}
 		return null;
 	}
+
+	public void QT(CommandSender sender, String rQT, double c) {
+		if(c > 0) {
+			sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + getLocationName(rQT) + ChatColor.BLUE + " for " + ChatColor.GOLD + c + ChatColor.BLUE + "...");	
+		} else {
+			sender.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + getLocationName(rQT) + ChatColor.BLUE + "...");
+		}
+		
+		Player p = (Player)sender;
+        World w = p.getWorld();
+        if(getLocations().getString("locations." + getLocation(rQT) + ".coords.dest") != null) {
+          int x = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.x");
+          int y = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.y");
+          int z = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.z");
+          int pitch = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.pitch");
+          int yaw = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.yaw");
+          Location dest = new Location(w, x, y, z, yaw, pitch);
+          p.teleport(dest);
+        } else {
+          int x = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.x");
+          int y = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.y");
+          int z = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.z");
+          Location dest = new Location(w, x, y, z);
+          p.teleport(dest);
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void unknownQT(CommandSender sender, String rQT, String qt) {
+		sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+		sender.sendMessage(ChatColor.BLUE + "From here you can QuickTravel to:");
+		Player p = (Player)sender;
+		String pWorld = p.getWorld().getName();
+		int destinations = 0;
+		List<Object> locList = (List<Object>) getLocations().getList("list");
+		if(locList != null) {
+			ListIterator<Object> li = locList.listIterator();
+			while(li.hasNext()) {
+				String v = li.next().toString();
+				if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
+					String w = getLocations().getString("locations." + v + ".world");
+					int c = getLocations().getInt("locations." + v + ".charge-from." + qt);
+					
+					if(pWorld.equals(w) && qt != getLocationName(v)) {
+						if(getConfig().getBoolean("locations-must-be-discovered") == true) {
+							List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
+							if(newDList != null) {
+								ListIterator<Object> ndli = newDList.listIterator();
+								while(ndli.hasNext()) {
+									String ndv = ndli.next().toString();
+									if(ndv.equalsIgnoreCase(sender.getName())) {
+										if(c > 0) {
+											sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
+										} else {
+											sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+										}
+										destinations++;
+									}
+								}
+							}
+						} else {
+							if(c > 0) {
+								sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Charge: " + c);
+							} else {
+								sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+							}
+							destinations++;
+						}
+					}
+				}
+			}
+			if(destinations == 0) {
+				sender.sendMessage("You cannot QuickTravel anywhere yet.");
+			}
+		}
+	}
 	
 	@SuppressWarnings("unchecked")
 	public String getLocation(String locName) {
@@ -671,6 +604,14 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			}
 		}
 		return null;
+	}
+	
+	public boolean playerHasPermission(Player p, String qt) {
+		if((getConfig().getBoolean("players-need-permissions") == true && p.hasPermission("qt.use." + getLocation(qt).toLowerCase())) || (getConfig().getBoolean("players-need-permissions") == false || getConfig().get("players-need-permissions") == null) || p.hasPermission("qt.use.*")) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -710,7 +651,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						Location coord = p.getLocation();
 						String pWorld = p.getWorld().getName();
 						
-						if((pWorld.equals(w)) && (coord.getX() >= x-radius && coord.getX() <= x+radius) && (coord.getZ() >= z-radius && coord.getZ() <= z+radius) && (coord.getY() >= y-yMod && coord.getY() <= y+yMod)) {
+						if((pWorld.equals(w)) && (coord.getX() >= x-radius && coord.getX() <= x+radius) && (coord.getZ() >= z-radius && coord.getZ() <= z+radius) && (coord.getY() >= y-yMod && coord.getY() <= y+yMod) && (playerHasPermission(p, v))) {
 							return getLocationName(v);
 						}
 					} else if(getLocations().getString("locations." + v + ".coords.secondary") != null && getLocations().getString("locations." + v + ".coords.primary") != null ) {
@@ -727,7 +668,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						Location coord = p.getLocation();
 						String pWorld = p.getWorld().getName();
 						
-						if((pWorld.equals(w)) && ((coord.getX() >= x1 && coord.getX() <= x2) || (coord.getX() <= x1 && coord.getX() >= x2)) && ((coord.getZ() >= z1 && coord.getZ() <= z2) || (coord.getZ() <= z1 && coord.getZ() >= z2)) && ((coord.getY() >= y1-yMod && coord.getY() <= y2+yMod) || (coord.getY() <= y1+yMod && coord.getY() >= y2-yMod))) {
+						if((pWorld.equals(w)) && ((coord.getX() >= x1 && coord.getX() <= x2) || (coord.getX() <= x1 && coord.getX() >= x2)) && ((coord.getZ() >= z1 && coord.getZ() <= z2) || (coord.getZ() <= z1 && coord.getZ() >= z2)) && ((coord.getY() >= y1-yMod && coord.getY() <= y2+yMod) || (coord.getY() <= y1+yMod && coord.getY() >= y2-yMod)) && (playerHasPermission(p, v))) {
 							return getLocationName(v);
 						}
 					} else {
