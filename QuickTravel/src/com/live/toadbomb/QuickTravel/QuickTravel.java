@@ -47,7 +47,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		this.getConfig().addDefault("enabled-by-default", true);
 		this.getConfig().addDefault("locations-must-be-discovered", true);
 		this.getConfig().addDefault("withdraw-from-player-not-bank", true);
-		this.getConfig().addDefault("players-need-permissions", false);
+		this.getConfig().addDefault("players-always-need-permissions", false);
 		this.getConfig().options().copyDefaults(true);
 		this.saveConfig();
 		getServer().getPluginManager().registerEvents(this, this);
@@ -607,7 +607,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	}
 	
 	public boolean playerHasPermission(Player p, String qt) {
-		if((getConfig().getBoolean("players-need-permissions") == true && p.hasPermission("qt.use." + getLocation(qt).toLowerCase())) || (getConfig().getBoolean("players-need-permissions") == false || getConfig().get("players-need-permissions") == null) || p.hasPermission("qt.use.*")) {
+		if((getConfig().getBoolean("players-always-need-permissions") == true && p.hasPermission("qt.use." + getLocation(qt).toLowerCase())) || (getConfig().getBoolean("players-always-need-permissions") == false || getConfig().get("players-always-need-permissions") == null) || p.hasPermission("qt.use.*")) {
 			return true;
 		} else {
 			return false;
