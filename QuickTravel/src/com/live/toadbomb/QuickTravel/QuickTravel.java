@@ -94,6 +94,10 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args) {
 		if(cmd.getName().equalsIgnoreCase("qt")) {
 			if(args.length == 1) {
+				if(!(sender instanceof Player) && !(args[0].equalsIgnoreCase("list"))) {
+					sender.sendMessage(ChatColor.RED + "You must be a player!");
+					return true;
+				}
 				// "/qt" has been passed with 1 argument - check to see whether list (admin), page number or QT destination
 				try {
 					// Has been determined to be a list page number, throw list at player
@@ -209,6 +213,10 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				}
 			} else if(args.length == 2) {
 				if(args[0].equalsIgnoreCase("create")) {
+					if(!(sender instanceof Player)) {
+						sender.sendMessage(ChatColor.RED + "You must be a player!");
+						return true;
+					}
 					// "/qt create" has been passed
 					try {
 						// Player attmpting to create QT with a name that is an int
@@ -219,7 +227,13 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						return true;
 					} catch(NumberFormatException e) {
 						if(sender.hasPermission("qt.admin.create")) {
-							if(checkLocations(args[1]) == false && !args[1].equalsIgnoreCase("list")) {
+							boolean matchesCommand = false;
+							if(!args[1].equalsIgnoreCase("create") && !args[1].equalsIgnoreCase("range") && !args[1].equalsIgnoreCase("dest") && !args[1].equalsIgnoreCase("update") && !args[1].equalsIgnoreCase("enable") && !args[1].equalsIgnoreCase("disable") && !args[1].equalsIgnoreCase("list") && !args[1].equalsIgnoreCase("rename") && !args[1].equalsIgnoreCase("charge")) {
+								matchesCommand = false;
+							} else {
+								matchesCommand = true;
+							}
+							if(checkLocations(args[1]) == false && !matchesCommand) {
 								Player p = (Player)sender;
 								Location coord = p.getLocation();
 								this.getLocations().set("locations." + args[1] + ".world", p.getWorld().getName());
@@ -241,7 +255,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								sender.sendMessage("Travel location " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " created.");
 							} else if(checkLocations(args[1]) == true) {
 								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " already exists!");
-							} else if(args[1].equalsIgnoreCase("list")) {
+							} else if(matchesCommand) {
 								sender.sendMessage("[" + ChatColor.RED + "ERROR" + ChatColor.WHITE + "] Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
 								sender.sendMessage("Names must not match /qt commands.");
 							} else {
@@ -254,6 +268,10 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						}
 					}
 				} else if(args[0].equalsIgnoreCase("range")) {
+					if(!(sender instanceof Player)) {
+						sender.sendMessage(ChatColor.RED + "You must be a player!");
+						return true;
+					}
 					// "/qt range" has been passed
 					if(sender.hasPermission("qt.admin.range")) {
 						if(checkLocations(args[1]) == true) {
@@ -281,7 +299,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						return false;
 					}
 				} else if(args[0].equalsIgnoreCase("dest")) {
-					// "/qt range" has been passed
+					if(!(sender instanceof Player)) {
+						sender.sendMessage(ChatColor.RED + "You must be a player!");
+						return true;
+					}
+					// "/qt dest" has been passed
 					if(sender.hasPermission("qt.admin.dest")) {
 						if(checkLocations(args[1]) == true) {
 							Player p = (Player)sender;
@@ -310,6 +332,10 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						return false;
 					}
 				} else if(args[0].equalsIgnoreCase("update")) {
+					if(!(sender instanceof Player)) {
+						sender.sendMessage(ChatColor.RED + "You must be a player!");
+						return true;
+					}
 					// "/qt update" has been passed
 					if(sender.hasPermission("qt.admin.update")) {
 						if(checkLocations(args[1]) == true) {
@@ -452,9 +478,14 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				// Too many arguments
 				return false;
 			} else {
-				// No arguments, show list of QTs
-				QTList(sender, 1, false);
-				return true;
+				if(!(sender instanceof Player) && !(args[0].equalsIgnoreCase("list"))) {
+					sender.sendMessage(ChatColor.RED + "You must be a player!");
+					return true;
+				} else {
+					// No arguments, show list of QTs
+					QTList(sender, 1, false);
+					return true;
+				}
 			}
 		}
 		return false;
@@ -584,12 +615,22 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							}
 						}
 					}
-					if(dState == true) {
-						d = "Discovered";
-						dColour = ChatColor.GOLD;
-					}
 					if(dCfg == false) {
-						dColour = ChatColor.GRAY;
+						if(dState == true) {
+							d = "Discovered";
+							dColour = ChatColor.GRAY;
+						} else {
+							d = "Undiscovered";
+							dColour = ChatColor.DARK_GRAY;
+						}
+					} else { 
+						if(dState == true) {
+							d = "Discovered";
+							dColour = ChatColor.GOLD;
+						} else {
+							d = "Undiscovered";
+							dColour = ChatColor.GRAY;
+						}
 					}
 					String x = ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | [" + w + "] | " + eColour + e + ChatColor.WHITE + " | " + dColour + d;
 					fullList.add(x);
