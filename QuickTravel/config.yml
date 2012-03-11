@@ -4,3 +4,7 @@ enabled-by-default: true
 locations-must-be-discovered: true
 withdraw-from-player-not-bank: true
 players-always-need-permissions: false
+qt-from-anywhere: false
+free-by-default: false
+price-multiplier: 0.8
+free-from-qts: false

@@ -1,6 +1,6 @@
 name: QuickTravel
 main: com.live.toadbomb.QuickTravel.QuickTravel
-version: 0.4
+version: 0.5
 description: >
              Allows for fast multi-destination point-to-point travel with optional fees.
 commands:
@@ -22,7 +22,7 @@ permissions:
       qt.admin.enable: true
       qt.admin.disable: true
       qt.admin.rename: true
-      qt.admin.charge: true
+      qt.admin.price: true
       qt.admin.list: true
       qt.use.*: true
   qt.admin.create:
@@ -46,8 +46,8 @@ permissions:
   qt.admin.rename:
     description: Gives access to /qt rename
     default: false
-  qt.admin.charge:
-    description: Gives access to /qt create
+  qt.admin.price:
+    description: Gives access to /qt price
     default: false
   qt.admin.list:
     description: Gives access to /qt list
