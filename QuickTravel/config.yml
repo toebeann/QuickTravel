@@ -1,10 +1,11 @@
-radius-when-only-primary-set: 5
+radius: 5
 height-modifier: 2
 enabled-by-default: true
-locations-must-be-discovered: true
-withdraw-from-player-not-bank: true
-players-always-need-permissions: false
+must-be-discovered: true
+require-permissions-by-default: false
 qt-from-anywhere: false
+enable-economy: false
+withdraw-from-player-not-bank: true
 free-by-default: false
 price-multiplier: 0.8
 free-from-qts: false
