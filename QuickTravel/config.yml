@@ -1,8 +1,9 @@
 radius: 5
 height-modifier: 2
 enabled-by-default: true
-must-be-discovered: true
+require-discovery-by-default: true
 require-permissions-by-default: false
+multiworld-by-default: false
 qt-from-anywhere: false
 enable-economy: false
 withdraw-from-player-not-bank: true

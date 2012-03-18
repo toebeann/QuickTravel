@@ -60,8 +60,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		this.getConfig().addDefault("radius", 5);
 		this.getConfig().addDefault("height-modifier", 2);
 		this.getConfig().addDefault("enabled-by-default", true);
-		this.getConfig().addDefault("must-be-discovered", true);
+		this.getConfig().addDefault("require-discovery-by-default", true);
 		this.getConfig().addDefault("require-permissions-by-default", false);
+		this.getConfig().addDefault("multiworld-by-default", false);
 		this.getConfig().addDefault("qt-from-anywhere", false);
 		this.getConfig().addDefault("enable-economy", false);
 		this.getConfig().addDefault("withdraw-from-player-not-bank", true);
@@ -69,6 +70,18 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		this.getConfig().addDefault("price-multiplier", 0.8);
 		this.getConfig().addDefault("free-from-qts", false);
 		this.getConfig().options().copyDefaults(true);
+		if(getConfig().get("radius-when-only-primary-set") != null) { 
+			this.getConfig().set("radius", getConfig().getDouble("radius-when-only-primary-set"));
+			this.getConfig().set("radius-when-only-primary-set", null);
+		}
+		if(getConfig().get("locations-must-be-discovered") != null) { 
+			this.getConfig().set("require-discovery-by-default", getConfig().getBoolean("locations-must-be-discovered"));
+			this.getConfig().set("locations-must-be-discovered", null);
+		}
+		if(getConfig().get("players-always-need-permissions") != null) { 
+			this.getConfig().set("require-permissions-by-default", getConfig().getBoolean("players-always-need-permissions"));
+			this.getConfig().set("players-always-need-permissions", null);
+		}
 		this.saveConfig();
 		
 		PluginManager pm = getServer().getPluginManager();
@@ -102,7 +115,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	
 	@EventHandler(priority = EventPriority.LOW)
 	public void onPlayerMove(PlayerMoveEvent event) {
-		if(getConfig().getBoolean("must-be-discovered") == true) {
+		if(getConfig().getBoolean("require-discovery-by-default") == true) {
 			Player p = event.getPlayer();
 			String qt = checkPlayerQT(p);
 			if(qt != null && playerHasPermission(p, qt)) {
@@ -115,6 +128,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						String v = li.next().toString();
 						if(v.equalsIgnoreCase(p.getName())) {
 							discovered = true;
+							break;
 						}
 					}
 				}
@@ -134,7 +148,6 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		}
 	}
 	
-	@SuppressWarnings("unchecked")
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args) {
 		if(cmd.getName().equalsIgnoreCase("qt")) {
 			/* Command Handling */
@@ -155,173 +168,59 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.RED + "You must be a player!");
 					return true;
 				}
-				/* Get arguments and deal with appropriately */
 				if(sender.hasPermission("qt.admin.create")) {
-					if(args.length == 2) {
-						try {
-							/* Player attempting to name a QT as a number */
-							@SuppressWarnings("unused")
-							int i = Integer.parseInt(args[1]);
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
-							sender.sendMessage("Names must contain letters.");
-							return true;
-						} catch(NumberFormatException e) {
-							if(!(!args[1].equalsIgnoreCase("create") && !args[1].equalsIgnoreCase("range") && !args[1].equalsIgnoreCase("dest") && !args[1].equalsIgnoreCase("update") && !args[1].equalsIgnoreCase("enable") && !args[1].equalsIgnoreCase("disable") && !args[1].equalsIgnoreCase("list") && !args[1].equalsIgnoreCase("rename") && !args[1].equalsIgnoreCase("price"))) {
-								/* Player attempting to name a QT after a command */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
-								sender.sendMessage("Names must not match /qt commands.");
-								return true;
-							}
-							if(containsLetter(args[1]) == false) {
-								/* Player attempting to name a QT without letters */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
-								sender.sendMessage("Names must contain letters.");
-								return true;
-							}
-							if(checkLocations(args[1]) == true) {
-								/* QT with name chosen already exists */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " already exists!");
-								return true;
-							}
-							/* Checks passed, create QT */
-							Player p = (Player)sender;
-							Location coord = p.getLocation();
-							this.getLocations().set("locations." + args[1] + ".world", p.getWorld().getName());
-							this.getLocations().set("locations." + args[1] + ".coords.primary.x", coord.getX());
-							this.getLocations().set("locations." + args[1] + ".coords.primary.y", coord.getY());
-							this.getLocations().set("locations." + args[1] + ".coords.primary.z", coord.getZ());
-							this.getLocations().set("locations." + args[1] + ".name", args[1]);
-							
-							List<Object> locList = (List<Object>) getLocations().getList("list");
-							if(locList != null) {
-								locList.add(args[1]);
-							} else {
-								List<Object> lList = new ArrayList<Object>();
-								lList.add(args[1]);
-								this.getLocations().set("list", lList);
-							}
-							
-							this.saveLocations();
-							sender.sendMessage("QT " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " created.");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Creates a new QT at your current location.");
-						sender.sendMessage("/qt create <name>");
-						return true;
-					}
+					QTCreate(sender, args);
+					return true;
 				} else {
 					/* Not authorised */
 					return false;
 				}
-			} else if(args[0].equalsIgnoreCase("rename")) {
-				/* "/qt rename" passed
-				 * Get arguments and deal with appropriately */
+			} else if(args[0].equalsIgnoreCase("rename") || args[0].equalsIgnoreCase("name")) {
+				/* "/qt rename" passed */
 				if(sender.hasPermission("qt.admin.rename")) {
-					if(args.length == 3) {
-						try {
-							/* Player attempting to name a QT as a number */
-							@SuppressWarnings("unused")
-							int i = Integer.parseInt(args[1]);
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
-							sender.sendMessage("Names must contain letters.");
-							return true;
-						} catch(NumberFormatException e) {
-							if(!(!args[2].equalsIgnoreCase("create") && !args[2].equalsIgnoreCase("range") && !args[2].equalsIgnoreCase("dest") && !args[2].equalsIgnoreCase("update") && !args[2].equalsIgnoreCase("enable") && !args[2].equalsIgnoreCase("disable") && !args[2].equalsIgnoreCase("list") && !args[2].equalsIgnoreCase("rename") && !args[2].equalsIgnoreCase("price"))) {
-								/* Player attempting to name a QT after a command */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid name!");
-								sender.sendMessage("Names must not match /qt commands.");
-								return true;
-							}
-							if(containsLetter(args[2]) == false) {
-								/* Player attempting to name a QT without letters */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + "] Could not create: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid name!");
-								sender.sendMessage("Names must contain letters.");
-								return true;
-							}
-							if(checkLocations(args[1]) == true && checkLocations(args[2]) == false) {
-								/* Checks passed, rename QT */
-								this.getLocations().set("locations." + getLocation(args[1]) + ".name", args[2]);
-								this.saveLocations();
-								sender.sendMessage(ChatColor.AQUA + getLocationName(getLocation(args[1])) + ChatColor.WHITE + " has been renamed " + ChatColor.AQUA + args[2] + ChatColor.WHITE + ".");
-								return true;
-							} else if(checkLocations(args[1]) == false) {
-								/* QT does not exist */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-								return true;
-							} else if(checkLocations(args[1]) == true && checkLocations(args[2]) == true) {
-								if(getLocation(args[1]).equals(getLocation(args[2]))) {
-									/* Checks passed, rename QT */
-									this.getLocations().set("locations." + getLocation(args[1]) + ".name", args[2]);
-									this.saveLocations();
-									sender.sendMessage(ChatColor.AQUA + getLocationName(getLocation(args[1])) + ChatColor.WHITE + " has been renamed " + ChatColor.AQUA + args[2] + ChatColor.WHITE + ".");
-									return true;
-								} else {
-									/* QT with name chosen already exists */
-									sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + getLocationName(args[2]) + ChatColor.GOLD + " already exists!");
-									return true;
-								}
-							} else {
-								/* Unknown error */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: Unexpected error!");
-								return true;
-							}
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Renames the selected QT.");
-						sender.sendMessage("/qt rename <name> <new name>");
-						return true;
-					}
+					QTRename(sender, args);
+					return true;
 				} else {
 					/* Not authorised */
 					return false;
 				}
-			} else if(args[0].equalsIgnoreCase("range")) {
-				/* "/qt range" passed 
+			} else if(args[0].equalsIgnoreCase("type") || args[0].equalsIgnoreCase("t")) {
+				/* "/qt type" passed */
+				if(sender.hasPermission("qt.admin.type")) {
+					QTType(sender, args);
+					return true;
+				} else {
+					/* Not authorised */
+					return false;
+				}
+			} else if(args[0].equalsIgnoreCase("radius") || args[0].equalsIgnoreCase("r")) {
+				/* "/qt radius" passed */
+				if(sender.hasPermission("qt.admin.radius")) {
+					QTRadius(sender, args);
+					return true;
+				} else {
+					/* Not authorised */
+					return false;
+				}
+			} else if(args[0].equalsIgnoreCase("cuboid")) {
+				/* "/qt cuboid" passed */
+				if(sender.hasPermission("qt.admin.cuboid")) {
+					QTCuboid(sender, args);
+					return true;
+				} else {
+					/* Not authorised */
+					return false;
+				}
+			} else if(args[0].equalsIgnoreCase("move")) {
+				/* "/qt update" passed 
 				 * Make sure is not being run from console */
 				if(!(sender instanceof Player)) {
 					sender.sendMessage(ChatColor.RED + "You must be a player!");
 					return true;
 				}
-				/* Get arguments and deal with appropriately */
-				if(sender.hasPermission("qt.admin.range")) {
-					if(args.length == 2) {
-						if(checkLocations(args[1]) == true) {
-							/* QT exists, get info and check world */
-							Player p = (Player)sender;
-							Location coord = p.getLocation();
-							String pWorld = p.getWorld().getName();
-							String locWorld = getLocations().getString("locations." + getLocation(args[1]) + ".world");
-							if(pWorld.equals(locWorld)) {
-								/* Checks passed, set range */
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.secondary.x", coord.getX());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.secondary.y", coord.getY());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.secondary.z", coord.getZ());
-								this.saveLocations();
-								sender.sendMessage("Range for QT " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " set.");
-								return true;
-							} else {
-								/* Incorrect world */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set range: You are not on the correct World!");
-								return true;
-							}
-						} else if(checkLocations(args[1]) == false) {
-							/* QT does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set range: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-							return true;
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set range: Unexpected error!");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Transforms the QT into a cuboid and sets the far corner to your current location.");
-						sender.sendMessage("/qt range <name>");
-						return true;
-					}
+				if(sender.hasPermission("qt.admin.move")) {
+					QTMove(sender, args);
+					return true;
 				} else {
 					/* Not authorised */
 					return false;
@@ -333,186 +232,27 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					sender.sendMessage(ChatColor.RED + "You must be a player!");
 					return true;
 				}
-				/* Get arguments and deal with appropriately */
 				if(sender.hasPermission("qt.admin.dest")) {
-					if(args.length == 2) {
-						if(checkLocations(args[1]) == true) {
-							/* QT exists, get info and check world */
-							Player p = (Player)sender;
-							Location coord = p.getLocation();
-							String pWorld = p.getWorld().getName();
-							String locWorld = getLocations().getString("locations." + getLocation(args[1]) + ".world");
-							if(pWorld.equals(locWorld)) {
-								/* Checks passed, set dest */
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.dest.x", coord.getX());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.dest.y", coord.getY());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.dest.z", coord.getZ());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.dest.pitch", coord.getPitch());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.dest.yaw", coord.getYaw());
-								this.saveLocations();
-								sender.sendMessage("Destination for QT " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " set.");
-								return true;
-							} else {
-								/* Incorrect world */
-								sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] Could not set dest: You are not on the correct World!");
-								return true;
-							}
-						} else if(checkLocations(args[1]) == false) {
-							/* QT does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set dest" + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-							return true;
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set dest: Unexpected error!");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Sets the arrival point for when users warp to the selected QT to your current location.");
-						sender.sendMessage("/qt dest <name>");
-						return true;
-					}
-				} else {
-					/* Not authorised */
-					return false;
-				}
-			} else if(args[0].equalsIgnoreCase("update")) {
-				/* "/qt update" passed 
-				 * Make sure is not being run from console */
-				if(!(sender instanceof Player)) {
-					sender.sendMessage(ChatColor.RED + "You must be a player!");
+					QTDest(sender, args);
 					return true;
-				}
-				/* Get arguments and deal with appropriately */
-				if(sender.hasPermission("qt.admin.update")) {
-					if(args.length == 2) {
-						if(checkLocations(args[1]) == true) {
-							/* QT exists, get info and check world */
-							Player p = (Player)sender;
-							Location coord = p.getLocation();
-							String pWorld = p.getWorld().getName();
-							String locWorld = getLocations().getString("locations." + getLocation(args[1]) + ".world");
-							if(pWorld.equals(locWorld)) {
-								/* Checks passed, set coords */
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.primary.x", coord.getX());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.primary.y", coord.getY());
-								this.getLocations().set("locations." + getLocation(args[1]) + ".coords.primary.z", coord.getZ());
-								this.saveLocations();
-								sender.sendMessage("Updated primary coords for QT " + ChatColor.AQUA + args[1] + ChatColor.WHITE + ".");
-								return true;
-							} else {
-								/* Incorrect world */
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not update: You are not on the correct World!");
-								return true;
-							}
-						} else if(checkLocations(args[1]) == false) {
-							/* QT does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not update: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-							return true;
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + "] Could not update: Unexpected error!");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Updates the primary coordinates of the selected QT to your current location.");
-						sender.sendMessage("/qt update <name>");
-						return true;
-					}
 				} else {
 					/* Not authorised */
 					return false;
 				}
-			} else if(args[0].equalsIgnoreCase("enable")) {
-				/* "/qt enable" passed
-				 * Get arguments and deal with appropriately */
+			} else if(args[0].equalsIgnoreCase("enable") || args[0].equalsIgnoreCase("e")) {
+				/* "/qt enable" passed */
 				if(sender.hasPermission("qt.admin.enable")) {
-					if(args.length == 2) {
-						if(checkLocations(args[1]) == true) {
-							/* QT exists, enable it */
-							this.getLocations().set("locations." + getLocation(args[1]) + ".enabled", true);
-							this.saveLocations();
-							sender.sendMessage(ChatColor.AQUA + args[1] + ChatColor.WHITE + " is now enabled!");
-							return true;
-						} else if(checkLocations(args[1]) == false) {
-							/* QT does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-							return true;
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: Unexpected error!");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Enables the selected QT.");
-						sender.sendMessage("/qt enable <name>");
-						return true;
-					}
+					QTEnable(sender, args);
+					return true;
 				} else {
 					/* Not authorised */
 					return false;
 				}
 			} else if(args[0].equalsIgnoreCase("disable")) {
-				/* "/qt disable" passed
-				 * Get arguments and deal with appropriately */
+				/* "/qt disable" passed */
 				if(sender.hasPermission("qt.admin.disable")) {
-					if(args.length == 2) {
-						if(checkLocations(args[1]) == true) {
-							/* QT exists, disable it */
-							this.getLocations().set("locations." + getLocation(args[1]) + ".enabled", false);
-							this.saveLocations();
-							sender.sendMessage(ChatColor.AQUA + args[1] + ChatColor.WHITE + " is now disabled!");
-							return true;
-						} else if(checkLocations(args[1]) == false) {
-							/* QT does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-							return true;
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.WHITE + " Could not disable: Unexpected error!");
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Disables the selected QT.");
-						sender.sendMessage("/qt disable <name>");
-						return true;
-					}
-				} else {
-					/* Not authorised */
-					return false;
-				}
-			} else if(args[0].equalsIgnoreCase("list")) { 
-				if(sender.hasPermission("qt.admin.list")) {
-					/* "/qt list" passed
-					 * Get arguments and deal with appropriately */
-					if(args.length == 1) {
-						/* No arguments, display list */
-						QTList(sender, 1, true);
-						return true;
-					} else if(args.length == 2) {
-						/* 1 argument, should be page number
-						 * Display page 1 otherwise */
-						try {
-							int i = Integer.parseInt(args[1]);
-							if(i <= 0) {
-								i = 1;
-							}
-							QTList(sender, i, true);
-							return true;
-						} catch(NumberFormatException e) {
-							sender.sendMessage("'" + args[1] + "' is not a number, displaying page 1.");
-							QTList(sender, 1, true);
-							return true;
-						}
-					} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Shows a list of all QT points and related info.");
-						sender.sendMessage("/qt list <page (optional)>");
-						return true;
-					}
+					QTDisable(sender, args);
+					return true;
 				} else {
 					/* Not authorised */
 					return false;
@@ -546,6 +286,39 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						/* Invalid arguments, throw info message. */
 						sender.sendMessage("Sets the price from QT <a> to QT <b>.");
 						sender.sendMessage("/qt price <price> <a> <b>");
+						return true;
+					}
+				} else {
+					/* Not authorised */
+					return false;
+				}
+			} else if(args[0].equalsIgnoreCase("list")) { 
+				if(sender.hasPermission("qt.admin.list")) {
+					/* "/qt list" passed
+					 * Get arguments and deal with appropriately */
+					if(args.length == 1) {
+						/* No arguments, display list */
+						QTList(sender, 1, true);
+						return true;
+					} else if(args.length == 2) {
+						/* 1 argument, should be page number
+						 * Display page 1 otherwise */
+						try {
+							int i = Integer.parseInt(args[1]);
+							if(i <= 0) {
+								i = 1;
+							}
+							QTList(sender, i, true);
+							return true;
+						} catch(NumberFormatException e) {
+							sender.sendMessage("'" + args[1] + "' is not a number, displaying page 1.");
+							QTList(sender, 1, true);
+							return true;
+						}
+					} else {
+						/* Invalid arguments, throw info message. */
+						sender.sendMessage("Shows a list of all QT points and related info.");
+						sender.sendMessage("/qt list <page (optional)>");
 						return true;
 					}
 				} else {
@@ -700,7 +473,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		
 		Player p = (Player)sender;
         World w = p.getWorld();
-        if(getLocations().getString("locations." + getLocation(rQT) + ".coords.dest") != null) {
+        if(getLocations().get("locations." + getLocation(rQT) + ".coords.dest") != null) {
           double x = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.x");
           double y = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.y");
           double z = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.z");
@@ -714,6 +487,1087 @@ public class QuickTravel extends JavaPlugin implements Listener {
           double z = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.z");
           Location dest = new Location(w, x, y, z);
           p.teleport(dest);
+		}
+	}
+	
+	@SuppressWarnings({ "unchecked", "unused" })
+	public void QTCreate(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		if(args.length >= 2) {
+			try {
+				/* Player attempting to name a QT as a number */
+				int checkInt = Integer.parseInt(args[1]);
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
+				sender.sendMessage("Names must contain letters.");
+				return;
+			} catch(NumberFormatException e) {
+				if(!(!args[1].equalsIgnoreCase("create") && !args[1].equalsIgnoreCase("rename") && !args[1].equalsIgnoreCase("name") && !args[1].equalsIgnoreCase("type") && !args[1].equalsIgnoreCase("t") && !args[1].equalsIgnoreCase("radius") && !args[1].equalsIgnoreCase("r") && !args[1].equalsIgnoreCase("cuboid") && !args[1].equalsIgnoreCase("c") && !args[1].equalsIgnoreCase("update") && !args[1].equalsIgnoreCase("u") && !args[1].equalsIgnoreCase("dest") && !args[1].equalsIgnoreCase("enable") && !args[1].equalsIgnoreCase("e") && !args[1].equalsIgnoreCase("disable") && !args[1].equalsIgnoreCase("price") && !args[1].equalsIgnoreCase("charge") && !args[1].equalsIgnoreCase("free") && !args[1].equalsIgnoreCase("f") && !args[1].equalsIgnoreCase("discovery") && !args[1].equalsIgnoreCase("discover") && !args[1].equalsIgnoreCase("disc") && !args[1].equalsIgnoreCase("d") && !args[1].equalsIgnoreCase("perms") && !args[1].equalsIgnoreCase("perm") && !args[1].equalsIgnoreCase("p") && !args[1].equalsIgnoreCase("multiworld") && !args[1].equalsIgnoreCase("multi") && !args[1].equalsIgnoreCase("m"))) {
+					/* Player attempting to name a QT after a command */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
+					sender.sendMessage("Names must not match /qt commands.");
+					return;
+				}
+				if(containsLetter(args[1]) == false) {
+					/* Player attempting to name a QT without letters */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
+					sender.sendMessage("Names must contain letters.");
+					return;
+				}
+				if(checkLocations(args[1]) == true) {
+					/* QT with name chosen already exists */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " already exists!");
+					return;
+				}
+				/* Checks passed, create QT */
+				Player p = (Player)sender;
+				Location coord = p.getLocation();
+				this.getLocations().set("locations." + args[1] + ".world", p.getWorld().getName());
+				this.getLocations().set("locations." + args[1] + ".coords.primary.x", coord.getX());
+				this.getLocations().set("locations." + args[1] + ".coords.primary.y", coord.getY());
+				this.getLocations().set("locations." + args[1] + ".coords.primary.z", coord.getZ());
+				this.getLocations().set("locations." + args[1] + ".coords.dest.x", coord.getX());
+				this.getLocations().set("locations." + args[1] + ".coords.dest.y", coord.getY());
+				this.getLocations().set("locations." + args[1] + ".coords.dest.z", coord.getZ());
+				this.getLocations().set("locations." + args[1] + ".coords.dest.pitch", coord.getPitch());
+				this.getLocations().set("locations." + args[1] + ".coords.dest.yaw", coord.getYaw());
+				this.getLocations().set("locations." + args[1] + ".name", args[1]);
+				this.getLocations().set("locations." + args[1] + ".type", "radius");
+				
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					locList.add(args[1]);
+				} else {
+					List<Object> lList = new ArrayList<Object>();
+					lList.add(args[1]);
+					this.getLocations().set("list", lList);
+				}
+				
+				sender.sendMessage("QT " + ChatColor.AQUA + args[1] + ChatColor.WHITE + " created.");
+
+				/* QT created, check optional parameters and set options. */
+				if(args.length > 2) {
+					for(int i = 2; i < args.length; i++) {
+						if(args[i].equalsIgnoreCase("-r") || args[i].equalsIgnoreCase("-radius")) {
+							/* Set radius size */
+							if(args.length > i+1) {
+								try {
+									double radius = Double.parseDouble(args[i+1]);
+									this.getLocations().set("locations." + args[1] + ".radius", radius);
+									sender.sendMessage("Radius: " + ChatColor.GOLD + radius);
+									i++;
+								} catch(NumberFormatException e2) {
+									/* Invalid radius */
+									sender.sendMessage(ChatColor.GOLD + args[i+1] + ChatColor.WHITE + " is not a valid radius, ignoring.");
+								}
+							} else {
+								/* No radius given */
+								sender.sendMessage("No radius provided, ignoring " + ChatColor.GOLD + args[i] + ChatColor.WHITE + ".");
+							}
+						} else if (args[i].equalsIgnoreCase("-h") || args[i].equalsIgnoreCase("-height")) {
+							/* Set height modifier */
+							if(args.length > i+1) {
+								try {
+									double height = Double.parseDouble(args[i+1]);
+									this.getLocations().set("locations." + args[1] + ".height-modifier", height);
+									sender.sendMessage("Height modifier: " + ChatColor.GOLD + height);
+									i++;
+								} catch(NumberFormatException e2) {
+									/* Invalid height modifier */
+									sender.sendMessage(ChatColor.GOLD + args[i+1] + ChatColor.WHITE + " is not a valid height modifier, ignoring.");
+								}
+							} else {
+								/* No height modifier given */
+								sender.sendMessage("No height modifier provided, ignoring " + ChatColor.GOLD + args[i] + ChatColor.WHITE + ".");
+							}
+						} else if (args[i].equalsIgnoreCase("-e") || args[i].equalsIgnoreCase("-enable") || args[i].equalsIgnoreCase("-enabled")) {
+							/* Set enabled status */
+							if(args.length > i+1) {
+								if(args[i+1].equalsIgnoreCase("true") || args[i+1].equalsIgnoreCase("false")) {
+									this.getLocations().set("locations." + args[1] + ".enabled", Boolean.valueOf(args[i+1]));
+									sender.sendMessage("Enabled: " + ChatColor.GOLD + args[i+1]);
+									i++;
+								} else {
+									/* Player has not given true/false, figure out what they want. */
+									boolean enabled = false;
+									if(getConfig().getBoolean("enabled-by-default") == false) {
+										enabled = true;
+									}
+									this.getLocations().set("locations." + args[1] + ".enabled", enabled);
+									sender.sendMessage("Enabled: " + ChatColor.GOLD + enabled);
+								}
+							} else {
+								/* Player has not given true/false, figure out what they want. */
+								boolean enabled = false;
+								if(getConfig().getBoolean("enabled-by-default") == false) {
+									enabled = true;
+								}
+								this.getLocations().set("locations." + args[1] + ".enabled", enabled);
+								sender.sendMessage("Enabled: " + ChatColor.GOLD + enabled);
+							}
+						} else if (args[i].equalsIgnoreCase("-f") || args[i].equalsIgnoreCase("-free")) {
+							/* Set free status */
+							if(args.length > i+1) {
+								if(args[i+1].equalsIgnoreCase("true") || args[i+1].equalsIgnoreCase("false")) {
+									this.getLocations().set("locations." + args[1] + ".free", Boolean.valueOf(args[i+1]));
+									sender.sendMessage("Free: " + ChatColor.GOLD + args[i+1]);
+									i++;
+								} else {
+									/* Player has not given true/false, figure out what they want. */
+									boolean free = true;
+									if(getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == true) {
+										free = false;
+									} else if(getConfig().getBoolean("free-by-default") == true) {
+										free = false;
+									}
+									this.getLocations().set("locations." + args[1] + ".free", free);
+									sender.sendMessage("Free: " + ChatColor.GOLD + free);
+								}
+							} else {
+								/* Player has not given true/false, figure out what they want. */
+								boolean enabled = false;
+								if(getConfig().getBoolean("enabled-by-default") == false) {
+									enabled = true;
+								}
+								this.getLocations().set("locations." + args[1] + ".enabled", enabled);
+								sender.sendMessage("Enabled: " + ChatColor.GOLD + enabled);
+							}
+						} else if (args[i].equalsIgnoreCase("-d") || args[i].equalsIgnoreCase("-disc") || args[i].equalsIgnoreCase("-discover") || args[i].equalsIgnoreCase("-discovery")) {
+							/* Set discovery status */
+							if(args.length > i+1) {
+								if(args[i+1].equalsIgnoreCase("true") || args[i+1].equalsIgnoreCase("false")) {
+									this.getLocations().set("locations." + args[1] + ".require-discovery", Boolean.valueOf(args[i+1]));
+									sender.sendMessage("Require discovery: " + ChatColor.GOLD + args[i+1]);
+									i++;
+								} else {
+									/* Player has not given true/false, figure out what they want. */
+									boolean discovery = false;
+									if(getConfig().getBoolean("require-discovery-by-default") == false) {
+										discovery = true;
+									}
+									this.getLocations().set("locations." + args[1] + ".require-discovery", discovery);
+									sender.sendMessage("Require discovery: " + ChatColor.GOLD + discovery);
+								}
+							} else {
+								/* Player has not given true/false, figure out what they want. */
+								boolean discovery = false;
+								if(getConfig().getBoolean("require-discovery-by-default") == false) {
+									discovery = true;
+								}
+								this.getLocations().set("locations." + args[1] + ".require-discovery", discovery);
+								sender.sendMessage("Require discovery: " + ChatColor.GOLD + discovery);
+							}
+						} else if (args[i].equalsIgnoreCase("-p") || args[i].equalsIgnoreCase("-perm") || args[i].equalsIgnoreCase("-perms")) {
+							/* Set permissions status */
+							if(args.length > i+1) {
+								if(args[i+1].equalsIgnoreCase("true") || args[i+1].equalsIgnoreCase("false")) {
+									this.getLocations().set("locations." + args[1] + ".require-permissions", Boolean.valueOf(args[i+1]));
+									sender.sendMessage("Require permissions: " + ChatColor.GOLD + args[i+1]);
+									i++;
+								} else {
+									/* Player has not given true/false, figure out what they want. */
+									boolean permissions = true;
+									if(getConfig().getBoolean("free-by-default") == true) {
+										permissions = false;
+									}
+									this.getLocations().set("locations." + args[1] + ".require-permissions", permissions);
+									sender.sendMessage("Require permissions: " + ChatColor.GOLD + permissions);
+								}
+							} else {
+								/* Player has not given true/false, figure out what they want. */
+								boolean permissions = true;
+								if(getConfig().getBoolean("free-by-default") == true) {
+									permissions = false;
+								}
+								this.getLocations().set("locations." + args[1] + ".require-permissions", permissions);
+								sender.sendMessage("Require permissions: " + ChatColor.GOLD + permissions);
+							}
+						} else if (args[i].equalsIgnoreCase("-m") || args[i].equalsIgnoreCase("-multi") || args[i].equalsIgnoreCase("-multiworld")) {
+							/* Set multiworld status */
+							if(args.length > i+1) {
+								if(args[i+1].equalsIgnoreCase("true") || args[i+1].equalsIgnoreCase("false")) {
+									this.getLocations().set("locations." + args[1] + ".multiworld", Boolean.valueOf(args[i+1]));
+									sender.sendMessage("Multiworld: " + ChatColor.GOLD + args[i+1]);
+									i++;
+								} else {
+									/* Player has not given true/false, figure out what they want. */
+									boolean multiworld = true;
+									if(getConfig().getBoolean("multiworld-by-default") == true) {
+										multiworld = false;
+									}
+									this.getLocations().set("locations." + args[1] + ".multiworld", multiworld);
+									sender.sendMessage("Multiworld: " + ChatColor.GOLD + multiworld);
+								}
+							} else {
+								/* Player has not given true/false, figure out what they want. */
+								boolean multiworld = true;
+								if(getConfig().getBoolean("multiworld-by-default") == true) {
+									multiworld = false;
+								}
+								this.getLocations().set("locations." + args[1] + ".multiworld", multiworld);
+								sender.sendMessage("Multiworld: " + ChatColor.GOLD + multiworld);
+							}
+						} else {
+							/* Invalid parameter */
+							sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+						}
+					}
+				}
+				this.saveLocations();
+				return;
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Creates a new QT at your current location.");
+			sender.sendMessage("/qt create <name>");
+			return;
+		}
+	}
+	
+	public void QTRename(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		if(args.length == 3) {
+			try {
+				/* Player attempting to name a QT as a number */
+				@SuppressWarnings("unused")
+				int i = Integer.parseInt(args[1]);
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " is not a valid name!");
+				sender.sendMessage("Names must contain letters.");
+				return;
+			} catch(NumberFormatException e) {
+				if(!(!args[1].equalsIgnoreCase("create") && !args[1].equalsIgnoreCase("rename") && !args[1].equalsIgnoreCase("name") && !args[1].equalsIgnoreCase("type") && !args[1].equalsIgnoreCase("t") && !args[1].equalsIgnoreCase("radius") && !args[1].equalsIgnoreCase("r") && !args[1].equalsIgnoreCase("cuboid") && !args[1].equalsIgnoreCase("c") && !args[1].equalsIgnoreCase("update") && !args[1].equalsIgnoreCase("u") && !args[1].equalsIgnoreCase("dest") && !args[1].equalsIgnoreCase("enable") && !args[1].equalsIgnoreCase("e") && !args[1].equalsIgnoreCase("disable") && !args[1].equalsIgnoreCase("price") && !args[1].equalsIgnoreCase("charge") && !args[1].equalsIgnoreCase("free") && !args[1].equalsIgnoreCase("f") && !args[1].equalsIgnoreCase("discovery") && !args[1].equalsIgnoreCase("discover") && !args[1].equalsIgnoreCase("disc") && !args[1].equalsIgnoreCase("d") && !args[1].equalsIgnoreCase("perms") && !args[1].equalsIgnoreCase("perm") && !args[1].equalsIgnoreCase("p") && !args[1].equalsIgnoreCase("multiworld") && !args[1].equalsIgnoreCase("multi") && !args[1].equalsIgnoreCase("m"))) {
+					/* Player attempting to name a QT after a command */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid name!");
+					sender.sendMessage("Names must not match /qt commands.");
+					return;
+				}
+				if(containsLetter(args[2]) == false) {
+					/* Player attempting to name a QT without letters */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + "] Could not rename: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid name!");
+					sender.sendMessage("Names must contain letters.");
+					return;
+				}
+				if(checkLocations(args[1]) == true && checkLocations(args[2]) == false) {
+					/* Checks passed, rename QT */
+					this.getLocations().set("locations." + getLocation(args[1]) + ".name", args[2]);
+					this.saveLocations();
+					sender.sendMessage(ChatColor.AQUA + getLocationName(getLocation(args[1])) + ChatColor.WHITE + " has been renamed " + ChatColor.AQUA + args[2] + ChatColor.WHITE + ".");
+					return;
+				} else if(checkLocations(args[1]) == false) {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				} else if(checkLocations(args[1]) == true && checkLocations(args[2]) == true) {
+					if(getLocation(args[1]).equals(getLocation(args[2]))) {
+						/* Checks passed, rename QT */
+						this.getLocations().set("locations." + getLocation(args[1]) + ".name", args[2]);
+						this.saveLocations();
+						sender.sendMessage(ChatColor.AQUA + getLocationName(getLocation(args[1])) + ChatColor.WHITE + " has been renamed " + ChatColor.AQUA + args[2] + ChatColor.WHITE + ".");
+						return;
+					} else {
+						/* QT with name chosen already exists */
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: " + ChatColor.AQUA + getLocationName(args[2]) + ChatColor.GOLD + " already exists!");
+						return;
+					}
+				} else {
+					/* Unknown error */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not rename: Unexpected error!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Renames the QT <name>.");
+			sender.sendMessage("/qt rename <name> <new name>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTType(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		if(args.length == 3 || args.length == 5) {
+			if(args[1].equalsIgnoreCase("*")) {
+				boolean w = false;
+				String world = "";
+				String type = "";
+				/* If player wishes to change the type of ALL QTs */
+				if(args[2].equalsIgnoreCase("cuboid")) {
+					type = "cuboid";
+				} else if(args[2].equalsIgnoreCase("radius")) {
+					type = "radius";
+				} else if(args[2].equalsIgnoreCase("toggle")) {
+					type = "toggle";
+				} else {
+					/* Invalid type */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid type!");
+					return;
+				}
+				if(args.length == 5) {
+					if(args[3].equalsIgnoreCase("-w")) {
+						w = true;
+						world = args[4];
+					} else {
+						/* Invalid arguments, throw info message. */
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[3] + ChatColor.GOLD + " is not a valid parameter!");
+						sender.sendMessage("Sets the type of the QT.");
+						sender.sendMessage("/qt type <name | *> <radius | cuboid | toggle>");
+						return;
+					}
+				}
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(type.equals("cuboid")) {
+							/* Set type to cuboid */
+							if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+								this.getLocations().set("locations." + qt + ".type", type);
+								this.saveLocations();
+								n++;
+								sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+								continue;
+							} else {
+								this.getLocations().set("locations." + qt + ".type", type);
+								this.saveLocations();
+								n++;
+								sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.WHITE + type + ChatColor.WHITE + ".");
+								sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+								continue;
+							}
+						} else if(type.equals("radius")) {
+							/* Set type to radius */
+							this.getLocations().set("locations." + qt + ".type", type);
+							this.saveLocations();
+							n++;
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+							continue;
+						} else if(type.equals("toggle")) {
+							/* Figure out what type the QT currently is and change it */
+							if(getType(qt).equals("cuboid")) {
+								/* Change type to radius */
+								this.getLocations().set("locations." + qt + ".type", "radius");
+								this.saveLocations();
+								n++;
+								sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + "radius" + ChatColor.WHITE + ".");
+								continue;
+							} else {
+								/* Change type to cuboid */
+								if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+									this.getLocations().set("locations." + qt + ".type", "cuboid");
+									this.saveLocations();
+									n++;
+									sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + "cuboid" + ChatColor.WHITE + ".");
+									continue;
+								} else {
+									this.getLocations().set("locations." + qt + ".type", "cuboid");
+									this.saveLocations();
+									n++;
+									sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.WHITE + "cuboid" + ChatColor.WHITE + ".");
+									sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+									continue;
+								}
+							}
+						}
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					/* QT is valid */
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(args[2].equalsIgnoreCase("cuboid")) {
+						/* Set type to cuboid */
+						String type = "cuboid";
+						if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+							this.getLocations().set("locations." + qt + ".type", type);
+							this.saveLocations();
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+							return;
+						} else {
+							this.getLocations().set("locations." + qt + ".type", type);
+							this.saveLocations();
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.WHITE + type + ChatColor.WHITE + ".");
+							sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+							return;
+						}
+					} else if(args[2].equalsIgnoreCase("radius")) {
+						/* Set type to radius */
+						String type = "radius";
+						this.getLocations().set("locations." + qt + ".type", type);
+						this.saveLocations();
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+						return;
+					} else if(args[2].equalsIgnoreCase("toggle")) {
+						/* Figure out what type the QT currently is and change it */
+						String type = "radius";
+						if(getType(qt).equals("cuboid")) {
+							/* Change type to radius */
+							type = "radius";
+							this.getLocations().set("locations." + qt + ".type", type);
+							this.saveLocations();
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+							return;
+						} else {
+							/* Change type to cuboid */
+							type = "cuboid";
+							if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+								this.getLocations().set("locations." + qt + ".type", type);
+								this.saveLocations();
+								sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+								return;
+							} else {
+								sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.WHITE + type + ChatColor.WHITE + ".");
+								sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+								return;
+							}
+						}
+					} else {
+						/* Invalid type */
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid type!");
+						return;
+					}
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else if(args.length == 2) {
+			if(checkLocations(args[1]) == true) {
+				/* QT exists, return type */
+				String qt = getLocation(args[1]);
+				String qtname = getLocationName(qt);
+				String type = getType(qt);
+				if(type.equals("cuboid")) {
+					if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " is set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+						return;
+					} else {
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " is set to " + ChatColor.WHITE + type + ChatColor.WHITE + ".");
+						sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+						return;
+					}
+				} else {
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " is set to " + ChatColor.WHITE + type + ChatColor.WHITE + ".");
+					return;
+				}
+			} else {
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets the type of the QT.");
+			sender.sendMessage("/qt type <name | *> <radius | cuboid | toggle>");
+			return;
+		}
+	}
+	
+	public String getType(String qt) {
+		String type = "radius";
+		if(getLocations().get("locations." + qt + ".type") != null && (getLocations().getString("locations." + qt + ".type").equalsIgnoreCase("radius") || getLocations().getString("locations." + qt + ".type").equalsIgnoreCase("cuboid"))) {
+			type = getLocations().getString("locations." + qt + ".type").toLowerCase();
+			return type;
+		} else {
+			if(getLocations().get("locations." + qt + ".coords.secondary") != null) {
+				type = "cuboid";
+			} else {
+				type = "radius";
+			}
+			return type;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTRadius(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean s = false;
+		double size = 0;
+		String type = "radius";
+		if(args.length >= 2) {
+			if(args.length > 2) {
+				for(int i = 2; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set radius: No world given for -w!");
+								return;	
+							}
+						}
+					} else if(args[i].equalsIgnoreCase("-s")) {
+						/* -s parameter given */
+						if(args.length > i+1) {
+							try {
+								size = Double.parseDouble(args[i+1]);
+								s = true;
+								i++;
+							} catch(NumberFormatException e2) {
+								if(args[i+1].equalsIgnoreCase("reset")) {
+									size = getConfig().getDouble("radius");
+									s = true;
+									i++;
+								} else {
+									/* Invalid size */
+									sender.sendMessage(ChatColor.GOLD + args[i+1] + ChatColor.WHITE + " is not a valid size, ignoring.");
+								}
+							}
+						} else {
+							/* No size given */
+							sender.sendMessage("No radius size, ignoring " + ChatColor.GOLD + args[i] + ChatColor.WHITE + ".");
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						this.getLocations().set("locations." + qt + ".type", type);
+						if(s == true) {
+							this.getLocations().set("locations." + qt + ".radius", size);
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ", size: " + ChatColor.GOLD + size + ChatColor.WHITE + ".");
+						} else {
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+						}
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set radius: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set radius: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					/* QT exists, set radius */
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					this.getLocations().set("locations." + qt + ".type", type);
+					if(s == true) {
+						this.getLocations().set("locations." + qt + ".radius", size);
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ", size: " + ChatColor.GOLD + size + ChatColor.WHITE + ".");
+					} else {
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+					}
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set radius: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Changes the type of QT <name> to radius.");
+			sender.sendMessage("/qt radius <name>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTCuboid(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean a = false;
+		boolean b = false;
+		String type = "cuboid";
+		if(args.length >= 2) {
+			if(args.length > 2) {
+				for(int i = 2; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: No world given for -w!");
+								return;	
+							}
+						}
+					} else if(args[i].equalsIgnoreCase("-a")) {
+						/* -a parameter given */
+						a = true;
+					} else if(args[i].equalsIgnoreCase("-b")) {
+						/* -b parameter given */
+						b = true;
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+				if((a == true && b == true) || args[1].equalsIgnoreCase("*")) {
+					a = false;
+					b = false;
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".type", type);
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					/* QT exists, set cuboid */
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(a == true || b == true) {
+						if(!(sender instanceof Player)) {
+							sender.sendMessage(ChatColor.RED + "You must be a player!");
+							return;
+						}
+						Player p = (Player)sender;
+						Location coord = p.getLocation();
+						String pWorld = p.getWorld().getName();
+						String locWorld = getLocations().getString("locations." + getLocation(args[1]) + ".world");
+						
+						if(pWorld.equals(locWorld)) {
+							/* Checks passed, set range */
+							String cuboid = "";
+							if(a == true) {
+								cuboid = "Primary";
+							} else {
+								cuboid = "Secondary";
+							}
+							this.getLocations().set("locations." + qt + ".type", type);
+							this.getLocations().set("locations." + qt + ".coords." + cuboid.toLowerCase() + ".x", coord.getX());
+							this.getLocations().set("locations." + qt + ".coords." + cuboid.toLowerCase() + ".y", coord.getY());
+							this.getLocations().set("locations." + qt + ".coords." + cuboid.toLowerCase() + ".z", coord.getZ());
+							this.saveLocations();
+							sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+							sender.sendMessage(ChatColor.GOLD + cuboid + ChatColor.WHITE + " coords for " + ChatColor.AQUA + qtname + ChatColor.WHITE + " set.");
+							if(getLocations().get("locations." + qt + ".coords.secondary") == null) {
+								sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+							}
+							return;
+						} else {
+							/* Incorrect world */
+							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: You are not on the correct World!");
+							return;
+						}
+					} else {
+						this.getLocations().set("locations." + qt + ".type", type);
+						this.saveLocations();
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + type + ChatColor.WHITE + ".");
+						if(getLocations().get("locations." + qt + ".coords.secondary") == null) {
+							sender.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+						}
+						return;
+					}
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Changes the type of QT <name> to cuboid.");
+			sender.sendMessage("/qt radius <name>");
+			return;
+		}
+	}
+	
+	public void QTMove(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		if(args.length == 2) {
+			if(checkLocations(args[1]) == true) {
+				/* QT exists, get info and check world */
+				String qt = getLocation(args[1]);
+				String qtname = getLocationName(qt);
+				if(getType(qt) == "radius") {
+					Player p = (Player)sender;
+					Location coord = p.getLocation();
+					String pWorld = p.getWorld().getName();
+					String locWorld = getLocations().getString("locations." + qt + ".world");
+					if(pWorld.equals(locWorld)) {
+						/* Checks passed, set coords */
+						this.getLocations().set("locations." + qt + ".coords.primary.x", coord.getX());
+						this.getLocations().set("locations." + qt + ".coords.primary.y", coord.getY());
+						this.getLocations().set("locations." + qt + ".coords.primary.z", coord.getZ());
+						this.saveLocations();
+						sender.sendMessage("Moved QT " + ChatColor.AQUA + qtname + ChatColor.WHITE + ".");
+						return;
+					} else {
+						/* Incorrect world */
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not move: You are not on the correct World!");
+						return;
+					}
+				} else {
+					/* Is not a radius QT */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not move: " + ChatColor.AQUA + qtname + ChatColor.GOLD + " is not a radius QT!");
+					return;
+				}
+			} else {
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not move: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Moves the selected radius QT to your current location.");
+			sender.sendMessage("/qt move <name>");
+			return;
+		}
+	}
+	
+	public void QTDest(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		if(args.length == 2) {
+			if(checkLocations(args[1]) == true) {
+				/* QT exists, get info and check world */
+				String qt = getLocation(args[1]);
+				String qtname = getLocationName(qt);
+				Player p = (Player)sender;
+				Location coord = p.getLocation();
+				String pWorld = p.getWorld().getName();
+				String locWorld = getLocations().getString("locations." + qt + ".world");
+				if(pWorld.equals(locWorld)) {
+					/* Checks passed, set dest */
+					this.getLocations().set("locations." + qt + ".coords.dest.x", coord.getX());
+					this.getLocations().set("locations." + qt + ".coords.dest.y", coord.getY());
+					this.getLocations().set("locations." + qt + ".coords.dest.z", coord.getZ());
+					this.getLocations().set("locations." + qt + ".coords.dest.pitch", coord.getPitch());
+					this.getLocations().set("locations." + qt + ".coords.dest.yaw", coord.getYaw());
+					this.saveLocations();
+					sender.sendMessage("Destination for QT " + ChatColor.AQUA + qtname + ChatColor.WHITE + " set.");
+					return;
+				} else {
+					/* Incorrect world */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set dest: You are not on the correct World!");
+					return;
+				}
+			} else {
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set dest" + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets the arrival spot for the selected QT to your current location.");
+			sender.sendMessage("/qt dest <name>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTEnable(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		boolean toggle = false;
+		String world = "";
+		String set = "enabled";
+		boolean e = true;
+		if(args.length >= 2) {
+			if(args.length > 2) {
+				for(int i = 2; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: No world given for -w!");
+								return;
+							}
+						}
+					} else if(args[i].equalsIgnoreCase("-set")) {
+						/* -set parameter given */
+						if(args.length > i+1) {
+							if(args[i+1].equalsIgnoreCase("true")) {
+								set = "enabled";
+								e = true;
+								i++;
+							} else if (args[i+1].equalsIgnoreCase("false")) {
+								set = "disabled";
+								e = false;
+								i++;
+							} else if (args[i+1].equalsIgnoreCase("toggle")) {
+								toggle = true;
+								i++;
+							} else {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: -set must be true, false, or toggle!");
+								return;
+							}
+						} else {
+							/* Has not specified -set parameter */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: -set must be true, false, or toggle!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
+								set = "enabled";
+								e = true;
+							} else {
+								set = "disabled";
+								e = false;
+							}
+						}
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
+							set = "enabled";
+							e = true;
+						} else {
+							set = "disabled";
+							e = false;
+						}
+					}
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not enable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Enables the selected QT.");
+			sender.sendMessage("/qt enable <name>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTDisable(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		boolean toggle = false;
+		String world = "";
+		String set = "disabled";
+		boolean e = false;
+		if(args.length >= 2) {
+			if(args.length > 2) {
+				for(int i = 2; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: No world given for -w!");
+								return;
+							}
+						}
+					} else if(args[i].equalsIgnoreCase("-set")) {
+						/* -set parameter given */
+						if(args.length > i+1) {
+							if(args[i+1].equalsIgnoreCase("true")) {
+								set = "disabled";
+								e = false;
+								i++;
+							} else if (args[i+1].equalsIgnoreCase("false")) {
+								set = "enabled";
+								e = true;
+								i++;
+							} else if (args[i+1].equalsIgnoreCase("toggle")) {
+								toggle = true;
+								i++;
+							} else {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: -set must be true, false, or toggle!");
+								return;
+							}
+						} else {
+							/* Has not specified -set parameter */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: -set must be true, false, or toggle!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
+								set = "disabled";
+								e = false;
+							} else {
+								set = "enabled";
+								e = true;
+							}
+						}
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
+							set = "disabled";
+							e = false;
+						} else {
+							set = "enabled";
+							e = true;
+						}
+					}
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not disable: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Disables the selected QT.");
+			sender.sendMessage("/qt disable <name>");
+			return;
 		}
 	}
 	
@@ -737,7 +1591,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
 							String w = getLocations().getString("locations." + v + ".world");
 							if(pWorld.equals(w) && qt != getLocationName(v)) {
-								if(getConfig().getBoolean("must-be-discovered") == true) {
+								if(getConfig().getBoolean("require-discovery-by-default") == true) {
 									List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
 									if(newDList != null) {
 										ListIterator<Object> ndli = newDList.listIterator();
@@ -745,6 +1599,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 											String ndv = ndli.next().toString();
 											if(ndv.equalsIgnoreCase(sender.getName())) {
 												destList.add(v);
+												break;
 											}
 										}
 									}
@@ -778,7 +1633,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					ChatColor eColour = ChatColor.WHITE;
 					String d = null;
 					boolean dState = false;
-					boolean dCfg = getConfig().getBoolean("must-be-discovered");
+					boolean dCfg = getConfig().getBoolean("require-discovery-by-default");
 					ChatColor dColour = ChatColor.WHITE;
 					if(getLocations().get("locations." + v + ".enabled") != null) {
 						eState = getLocations().getBoolean("locations." + v + ".enabled");
@@ -941,7 +1796,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			return false;
 		}
 		boolean discovered = false;
-		if(getConfig().getBoolean("must-be-discovered") == true) {
+		if(getConfig().getBoolean("require-discovery-by-default") == true) {
 			// If locations must be discovered, check player has discovered it
 			List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(rQT) + ".discovered-by");
 			if(dList != null) {
@@ -1108,7 +1963,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
 					if(getLocations().getString("locations." + v + ".coords.secondary") == null && getLocations().getString("locations." + v + ".coords.primary") != null ) {
 						// Primary Coords set, no Secondary Coords.
-						int radius = getConfig().getInt("radius");
+						double radius = getConfig().getDouble("radius");
 						int yMod = getConfig().getInt("height-modifier");
 						String w = getLocations().getString("locations." + v + ".world");
 						int x = getLocations().getInt("locations." + v + ".coords.primary.x");
@@ -1188,7 +2043,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		if(s == null)
 			return false;
 		boolean letterFound = false;
-		for (int i = 0; !letterFound && i < s.length(); i++)
+		for(int i = 0; !letterFound && i < s.length(); i++)
 		letterFound = letterFound
 				|| Character.isLetter(s.charAt(i));
 		return letterFound;
