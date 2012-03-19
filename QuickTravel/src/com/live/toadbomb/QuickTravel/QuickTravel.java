@@ -2084,20 +2084,66 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
 							String w = getLocations().getString("locations." + v + ".world");
 							if(pWorld.equals(w) && qt != getLocationName(v)) {
-								if(getConfig().getBoolean("require-discovery-by-default") == true) {
-									List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
-									if(newDList != null) {
-										ListIterator<Object> ndli = newDList.listIterator();
-										while(ndli.hasNext()) {
-											String ndv = ndli.next().toString();
-											if(ndv.equalsIgnoreCase(sender.getName())) {
-												destList.add(v);
-												break;
+								if(getLocations().get("locations." + v + ".require-discovery") != null) {
+									/* Does the location have to be discovered? */
+									if(getLocations().getBoolean("locations." + v + ".require-discovery") == true) {
+										/* Yes, check to see if player has discovered it */
+										List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
+										if(newDList != null) {
+											ListIterator<Object> ndli = newDList.listIterator();
+											while(ndli.hasNext()) {
+												String ndv = ndli.next().toString();
+												if(ndv.equalsIgnoreCase(sender.getName())) {
+													/* Player has discovered, add to list */
+													destList.add(v);
+													break;
+												}
 											}
+										}
+									} else if(getLocations().getBoolean("locations." + v + ".require-discovery") == false) {
+										/* No, add to list */
+										destList.add(v);
+									} else {
+										/* This QT's discovery setting is broken, use default instead */
+										if(getConfig().getBoolean("require-discovery-by-default") == true) {
+											/* Discovery required by default */
+											List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
+											if(newDList != null) {
+												ListIterator<Object> ndli = newDList.listIterator();
+												while(ndli.hasNext()) {
+													String ndv = ndli.next().toString();
+													if(ndv.equalsIgnoreCase(sender.getName())) {
+														/* Player has discovered, add to list */
+														destList.add(v);
+														break;
+													}
+												}
+											}
+										} else {
+											/* Discovery not required, add to list */
+											destList.add(v);
 										}
 									}
 								} else {
-									destList.add(v);
+									/* No discovery setting for QT, use default instead */
+									if(getConfig().getBoolean("require-discovery-by-default") == true) {
+										/* Discovery required by default */
+										List<Object> newDList = (List<Object>) getLocations().getList("locations." + v + ".discovered-by");
+										if(newDList != null) {
+											ListIterator<Object> ndli = newDList.listIterator();
+											while(ndli.hasNext()) {
+												String ndv = ndli.next().toString();
+												if(ndv.equalsIgnoreCase(sender.getName())) {
+													/* Player has discovered, add to list */
+													destList.add(v);
+													break;
+												}
+											}
+										}
+									} else {
+										/* Discovery not required, add to list */
+										destList.add(v);
+									}
 								}
 							}
 						}
@@ -2301,27 +2347,86 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			return false;
 		}
 		boolean discovered = false;
-		if(getConfig().getBoolean("require-discovery-by-default") == true) {
-			// If locations must be discovered, check player has discovered it
-			List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(rQT) + ".discovered-by");
-			if(dList != null) {
-				ListIterator<Object> dli = dList.listIterator();
-				while(dli.hasNext()) {
-					String dv = dli.next().toString();
-					if(dv.equalsIgnoreCase(sender.getName())) {
-						discovered = true;
-						break;
+		if(getLocations().get("locations." + getLocation(rQT) + ".require-discovery") != null) {
+			/* Is discovery required? */
+			if(getLocations().getBoolean("locations." + getLocation(rQT) + ".require-discovery") == true) {
+				/* Yes, check to see if player has discovered it */
+				List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(rQT) + ".discovered-by");
+				if(dList != null) {
+					ListIterator<Object> dli = dList.listIterator();
+					while(dli.hasNext()) {
+						String dv = dli.next().toString();
+						if(dv.equalsIgnoreCase(sender.getName())) {
+							/* Player has discovered */
+							discovered = true;
+							break;
+						}
 					}
-				}
-				if(discovered == false) {
+					if(discovered == false) {
+						sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+						QTList(sender, 1, false);
+						return false;
+					}
+				} else {
 					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
 					QTList(sender, 1, false);
 					return false;
 				}
+			} else if(getLocations().getBoolean("locations." + getLocation(rQT) + ".require-discovery") == false) {
+				/* No, nothing to do here */
+				
 			} else {
-				sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
-				QTList(sender, 1, false);
-				return false;
+				/* This QT's discovery setting is broken, use default instead */
+				if(getConfig().getBoolean("require-discovery-by-default") == true) {
+					/* Discovery required by default */
+					List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(rQT) + ".discovered-by");
+					if(dList != null) {
+						ListIterator<Object> dli = dList.listIterator();
+						while(dli.hasNext()) {
+							String dv = dli.next().toString();
+							if(dv.equalsIgnoreCase(sender.getName())) {
+								/* Player has discovered */
+								discovered = true;
+								break;
+							}
+						}
+						if(discovered == false) {
+							sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+							QTList(sender, 1, false);
+							return false;
+						}
+					} else {
+						sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+						QTList(sender, 1, false);
+						return false;
+					}
+				}
+			}
+		} else {
+			/* No discovery setting for QT, use default instead */
+			if(getConfig().getBoolean("require-discovery-by-default") == true) {
+				/* Discovery required by default */
+				List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(rQT) + ".discovered-by");
+				if(dList != null) {
+					ListIterator<Object> dli = dList.listIterator();
+					while(dli.hasNext()) {
+						String dv = dli.next().toString();
+						if(dv.equalsIgnoreCase(sender.getName())) {
+							/* Player has discovered */
+							discovered = true;
+							break;
+						}
+					}
+					if(discovered == false) {
+						sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+						QTList(sender, 1, false);
+						return false;
+					}
+				} else {
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + rQT + ChatColor.WHITE + "!");
+					QTList(sender, 1, false);
+					return false;
+				}
 			}
 		}
 		return true;
