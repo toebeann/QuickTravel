@@ -573,22 +573,6 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								/* No radius given */
 								sender.sendMessage("No radius provided, ignoring " + ChatColor.GOLD + args[i] + ChatColor.WHITE + ".");
 							}
-						} else if (args[i].equalsIgnoreCase("-h") || args[i].equalsIgnoreCase("-height")) {
-							/* Set height modifier */
-							if(args.length > i+1) {
-								try {
-									double height = Double.parseDouble(args[i+1]);
-									this.getLocations().set("locations." + args[1] + ".height-modifier", height);
-									sender.sendMessage("Height modifier: " + ChatColor.GOLD + height);
-									i++;
-								} catch(NumberFormatException e2) {
-									/* Invalid height modifier */
-									sender.sendMessage(ChatColor.GOLD + args[i+1] + ChatColor.WHITE + " is not a valid height modifier, ignoring.");
-								}
-							} else {
-								/* No height modifier given */
-								sender.sendMessage("No height modifier provided, ignoring " + ChatColor.GOLD + args[i] + ChatColor.WHITE + ".");
-							}
 						} else if (args[i].equalsIgnoreCase("-e") || args[i].equalsIgnoreCase("-enable") || args[i].equalsIgnoreCase("-enabled")) {
 							/* Set enabled status */
 							if(args.length > i+1) {
@@ -1258,7 +1242,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				/* QT exists, get info and check world */
 				String qt = getLocation(args[1]);
 				String qtname = getLocationName(qt);
-				if(getType(qt) == "radius") {
+				if(getType(qt).equals("radius")) {
 					Player p = (Player)sender;
 					Location coord = p.getLocation();
 					String pWorld = p.getWorld().getName();
@@ -1403,11 +1387,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						}
 						if(toggle == true) {
 							if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
-								set = "enabled";
-								e = true;
-							} else {
 								set = "disabled";
 								e = false;
+							} else {
+								set = "enabled";
+								e = true;
 							}
 						}
 						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
@@ -1432,11 +1416,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					String qtname = getLocationName(qt);
 					if(toggle == true) {
 						if(getLocations().get("locations." + qt + ".enabled") != null && getLocations().getBoolean("locations." + qt + ".enabled") == true) {
-							set = "enabled";
-							e = true;
-						} else {
 							set = "disabled";
 							e = false;
+						} else {
+							set = "enabled";
+							e = true;
 						}
 					}
 					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
@@ -2450,54 +2434,122 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	
 	@SuppressWarnings("unchecked")
 	public String checkPlayerQT(CommandSender sender) {
+		String QT = "";
 		List<Object> locList = (List<Object>) getLocations().getList("list");
 		if(locList != null) {
 			ListIterator<Object> li = locList.listIterator();
 			while(li.hasNext()) {
 				String v = li.next().toString();
 				if((getLocations().get("locations." + v + ".enabled") == null && getConfig().getBoolean("enabled-by-default") == true) || getLocations().getBoolean("locations." + v + ".enabled") == true) {
-					if(getLocations().getString("locations." + v + ".coords.secondary") == null && getLocations().getString("locations." + v + ".coords.primary") != null ) {
-						// Primary Coords set, no Secondary Coords.
-						double radius = getConfig().getDouble("radius");
-						int yMod = getConfig().getInt("height-modifier");
-						String w = getLocations().getString("locations." + v + ".world");
-						int x = getLocations().getInt("locations." + v + ".coords.primary.x");
-						int y = getLocations().getInt("locations." + v + ".coords.primary.y");
-						int z = getLocations().getInt("locations." + v + ".coords.primary.z");
-						Player p = (Player)sender;
-						Location coord = p.getLocation();
-						String pWorld = p.getWorld().getName();
-						
-						if((pWorld.equals(w)) && (coord.getX() >= x-radius && coord.getX() <= x+radius) && (coord.getZ() >= z-radius && coord.getZ() <= z+radius) && (coord.getY() >= y-yMod && coord.getY() <= y+yMod) && (playerHasPermission(p, v))) {
-							return getLocationName(v);
-						}
-					} else if(getLocations().getString("locations." + v + ".coords.secondary") != null && getLocations().getString("locations." + v + ".coords.primary") != null ) {
-						// Primary & Secondary Coords set.
-						int yMod = getConfig().getInt("height-modifier");
-						String w = getLocations().getString("locations." + v + ".world");
-						int x1 = getLocations().getInt("locations." + v + ".coords.primary.x");
-						int y1 = getLocations().getInt("locations." + v + ".coords.primary.y");
-						int z1 = getLocations().getInt("locations." + v + ".coords.primary.z");
-						int x2 = getLocations().getInt("locations." + v + ".coords.secondary.x");
-						int y2 = getLocations().getInt("locations." + v + ".coords.secondary.y");
-						int z2 = getLocations().getInt("locations." + v + ".coords.secondary.z");
-						Player p = (Player)sender;
-						Location coord = p.getLocation();
-						String pWorld = p.getWorld().getName();
-						
-						if((pWorld.equals(w)) && ((coord.getX() >= x1 && coord.getX() <= x2) || (coord.getX() <= x1 && coord.getX() >= x2)) && ((coord.getZ() >= z1 && coord.getZ() <= z2) || (coord.getZ() <= z1 && coord.getZ() >= z2)) && ((coord.getY() >= y1-yMod && coord.getY() <= y2+yMod) || (coord.getY() <= y1+yMod && coord.getY() >= y2-yMod)) && (playerHasPermission(p, v))) {
-							return getLocationName(v);
+					if(getLocations().get("locations." + v + ".type") != null) {
+						if(getLocations().getString("locations." + v + ".type").equals("radius")) {
+							/* Type set to radius */
+							QT = checkRadiusQT(sender, v);
+							if(QT != null) {
+								return QT;
+							}
+						} else if(getLocations().getString("locations." + v + ".type").equals("cuboid")) {
+							/* Type set to cuboid */
+							if(getLocations().get("locations." + v + ".coords.secondary") == null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+								/* Cuboid invalid, treat as radius */
+								QT = checkRadiusQT(sender, v);
+								if(QT != null) {
+									return QT;
+								}
+							} else if(getLocations().get("locations." + v + ".coords.secondary") != null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+								/* Cuboid is valid */
+								QT = checkCuboidQT(sender, v);
+								if(QT != null) {
+									return QT;
+								}
+							} else {
+								/* Seems broken... */
+								sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " is broken!");
+							}
+						} else {
+							/* Invalid type for QT, work out type */
+							if(getLocations().get("locations." + v + ".coords.secondary") == null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+								/* Defaulting to radius */
+								QT = checkRadiusQT(sender, v);
+								if(QT != null) {
+									return QT;
+								}
+							} else if(getLocations().get("locations." + v + ".coords.secondary") != null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+								/* Defaulting to cuboid */
+								QT = checkCuboidQT(sender, v);
+								if(QT != null) {
+									return QT;
+								}
+							} else {
+								/* Seems broken... */
+								sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " is broken!");
+							}
 						}
 					} else {
-						// All other cases.
-						sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " is broken!");
-						return null;
+						/* No type set, work out type */
+						if(getLocations().get("locations." + v + ".coords.secondary") == null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+							/* Defaulting to radius */
+							QT = checkRadiusQT(sender, v);
+							if(QT != null) {
+								return QT;
+							}
+						} else if(getLocations().get("locations." + v + ".coords.secondary") != null && getLocations().get("locations." + v + ".coords.primary") != null ) {
+							/* Defaulting to cuboid */
+							QT = checkCuboidQT(sender, v);
+							if(QT != null) {
+								return QT;
+							}
+						} else {
+							/* Seems broken... */
+							sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " is broken!");
+						}
 					}
 				}
 			}
 			return null;
 		} else {
 			// Empty list
+			return null;
+		}
+	}
+	
+	public String checkRadiusQT(CommandSender sender, String v) {
+		double radius = getConfig().getDouble("radius");
+		if(getLocations().get("locations." + v + ".radius") != null) {
+			radius = getLocations().getDouble("locations." + v + ".radius");
+		}
+		int yMod = getConfig().getInt("height-modifier");
+		String w = getLocations().getString("locations." + v + ".world");
+		int x = getLocations().getInt("locations." + v + ".coords.primary.x");
+		int y = getLocations().getInt("locations." + v + ".coords.primary.y");
+		int z = getLocations().getInt("locations." + v + ".coords.primary.z");
+		Player p = (Player)sender;
+		Location coord = p.getLocation();
+		String pWorld = p.getWorld().getName();
+		
+		if((pWorld.equals(w)) && (coord.getX() >= x-radius && coord.getX() <= x+radius) && (coord.getZ() >= z-radius && coord.getZ() <= z+radius) && (coord.getY() >= y-yMod && coord.getY() <= y+yMod) && (playerHasPermission(p, v))) {
+			return getLocationName(v);
+		} else {
+			return null;
+		}
+	}
+	
+	public String checkCuboidQT(CommandSender sender, String v) {
+		int yMod = getConfig().getInt("height-modifier");
+		String w = getLocations().getString("locations." + v + ".world");
+		int x1 = getLocations().getInt("locations." + v + ".coords.primary.x");
+		int y1 = getLocations().getInt("locations." + v + ".coords.primary.y");
+		int z1 = getLocations().getInt("locations." + v + ".coords.primary.z");
+		int x2 = getLocations().getInt("locations." + v + ".coords.secondary.x");
+		int y2 = getLocations().getInt("locations." + v + ".coords.secondary.y");
+		int z2 = getLocations().getInt("locations." + v + ".coords.secondary.z");
+		Player p = (Player)sender;
+		Location coord = p.getLocation();
+		String pWorld = p.getWorld().getName();
+		
+		if((pWorld.equals(w)) && ((coord.getX() >= x1 && coord.getX() <= x2) || (coord.getX() <= x1 && coord.getX() >= x2)) && ((coord.getZ() >= z1 && coord.getZ() <= z2) || (coord.getZ() <= z1 && coord.getZ() >= z2)) && ((coord.getY() >= y1-yMod && coord.getY() <= y2+yMod) || (coord.getY() <= y1+yMod && coord.getY() >= y2-yMod)) && (playerHasPermission(p, v))) {
+			return getLocationName(v);
+		} else {
 			return null;
 		}
 	}
