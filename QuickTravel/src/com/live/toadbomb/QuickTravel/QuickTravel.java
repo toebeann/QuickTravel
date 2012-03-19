@@ -115,35 +115,33 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	
 	@EventHandler(priority = EventPriority.LOW)
 	public void onPlayerMove(PlayerMoveEvent event) {
-		if(getConfig().getBoolean("require-discovery-by-default") == true) {
-			Player p = event.getPlayer();
-			String qt = checkPlayerQT(p);
-			if(qt != null && playerHasPermission(p, qt)) {
-				boolean discovered = false;
-				@SuppressWarnings("unchecked")
-				List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(qt) + ".discovered-by");
+		Player p = event.getPlayer();
+		String qt = checkPlayerQT(p);
+		if(qt != null && playerHasPermission(p, qt)) {
+			boolean discovered = false;
+			@SuppressWarnings("unchecked")
+			List<Object> dList = (List<Object>) getLocations().getList("locations." + getLocation(qt) + ".discovered-by");
+			if(dList != null) {
+				ListIterator<Object> li = dList.listIterator();
+				while(li.hasNext()) {
+					String v = li.next().toString();
+					if(v.equalsIgnoreCase(p.getName())) {
+						discovered = true;
+						break;
+					}
+				}
+			}
+			if(discovered == false) {
 				if(dList != null) {
-					ListIterator<Object> li = dList.listIterator();
-					while(li.hasNext()) {
-						String v = li.next().toString();
-						if(v.equalsIgnoreCase(p.getName())) {
-							discovered = true;
-							break;
-						}
-					}
+					dList.add(p.getName());
+				} else {
+					List<Object> newDList = new ArrayList<Object>();
+					newDList.add(p.getName());
+					getLocations().set("locations." + getLocation(qt) + ".discovered-by", newDList);
 				}
-				if(discovered == false) {
-					if(dList != null) {
-						dList.add(p.getName());
-					} else {
-						List<Object> newDList = new ArrayList<Object>();
-						newDList.add(p.getName());
-						getLocations().set("locations." + getLocation(qt) + ".discovered-by", newDList);
-					}
-					this.saveLocations();
-					p.sendMessage(ChatColor.BLUE + "You have discovered " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
-					p.sendMessage("Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
-				}
+				this.saveLocations();
+				p.sendMessage(ChatColor.BLUE + "You have discovered " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
+				p.sendMessage("Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 			}
 		}
 	}
@@ -366,59 +364,67 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								return true;
 							}
 							/* Check economy */
-							double c = getLocations().getDouble("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt));
+							double c = 0; 
 							if(economyEnabled == true) {
 								/* Economy is enabled */
-								if(getLocations().get("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt)) != null) {
-									/* Price has been manually set for QT */
-									if(c > 0) {
-										/* Check player has enough money */
-										if(EcoSetup.economy.has(p.getName(), c)) {
-											/* Withdraw money from player */
-			                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
-			                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
-			                            	} else {
-			                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
-			                            	}
-			                            	/* Send QT */
-			                            	QT(sender, args[0], c);
-			                                return true;
-			                            } else {
-			                            	/* Player does not have enough money */
-			                                sender.sendMessage("You do not have enough money to go there.");
-			                                return true;
-										}
-									} else {
-										/* Send QT */
-										QT(sender, args[0], c);
-		                                return true;
-									}
+								if((isFree(getLocation(args[0])) && getLocations().get("locations." + getLocation(args[0]) + ".free") != null) || (isFree(getLocation(qt)) && getLocations().get("locations." + getLocation(qt) + ".free") != null)) {
+									/* One or both of these QTs are free
+									 * Send QT */
+									QT(sender, args[0], 0);
+	                                return true;
 								} else {
-									/* No custom price set, check whether it should be free
-									 * or if we should set the price */
-									if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
-										/* QT should not be free, calculate price */
-										c = calculatePrice(getLocation(qt), getLocation(args[0]));
-										/* Check player has enough money */
-										if(EcoSetup.economy.has(p.getName(), c)) {
-											/* Withdraw money from player */
-			                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
-			                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
-			                            	} else {
-			                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
-			                            	}
-			                            	/* Send QT */
-			                            	QT(sender, args[0], c);
-			                                return true;
-			                            } else {
-			                            	/* Player does not have enough money */
-			                                sender.sendMessage("You do not have enough money to go there.");
+									if(getLocations().get("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt)) != null) {
+										/* Price has been manually set for QT */
+										c = getLocations().getDouble("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt));
+										if(c > 0) {
+											/* Check player has enough money */
+											if(EcoSetup.economy.has(p.getName(), c)) {
+												/* Withdraw money from player */
+				                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+				                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+				                            	} else {
+				                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+				                            	}
+				                            	/* Send QT */
+				                            	QT(sender, args[0], c);
+				                                return true;
+				                            } else {
+				                            	/* Player does not have enough money */
+				                                sender.sendMessage("You do not have enough money to go there.");
+				                                return true;
+											}
+										} else {
+											/* Send QT */
+											QT(sender, args[0], c);
 			                                return true;
 										}
 									} else {
-										/* QT should be free, send QT */
-										QT(sender, args[0], 0);
-										return true;																	
+										/* No custom price set, check whether it should be free
+										 * or if we should set the price */
+										if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
+											/* QT should not be free, calculate price */
+											c = calculatePrice(getLocation(qt), getLocation(args[0]));
+											/* Check player has enough money */
+											if(EcoSetup.economy.has(p.getName(), c)) {
+												/* Withdraw money from player */
+				                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+				                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+				                            	} else {
+				                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+				                            	}
+				                            	/* Send QT */
+				                            	QT(sender, args[0], c);
+				                                return true;
+				                            } else {
+				                            	/* Player does not have enough money */
+				                                sender.sendMessage("You do not have enough money to go there.");
+				                                return true;
+											}
+										} else {
+											/* QT should be free, send QT */
+											QT(sender, args[0], 0);
+											return true;																	
+										}
 									}
 								}
 							} else {
@@ -431,23 +437,31 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							 * however QTs are enabled from anywhere */
 							if(getConfig().getBoolean("free-by-default") == false && economyEnabled == true) {
 								/* Economy is enabled
-								 * QT should not be free, calculate price */
-								int c = calculatePrice(sender, getLocation(args[0]));
-								/* Check player has enough money */
-								if(EcoSetup.economy.has(p.getName(), c)) {
-									/* Withdraw money from player */
-	                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
-	                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
-	                            	} else {
-	                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
-	                            	}
-	                            	/* Send QT */
-	                            	QT(sender, args[0], c);
-	                                return true;
-	                            } else {
-	                            	/* Player does not have enough money */
-	                                sender.sendMessage("You do not have enough money to go there.");
-	                                return true;
+								 * QTs are not free by default
+								 * Check whether destination is free
+								 * and calculate if not */
+								if(isFree(getLocation(args[0])) && getLocations().get("locations." + getLocation(args[0]) + ".free") != null) {
+									/* QT is free, send */
+									QT(sender, args[0], 0);
+									return true;
+								} else {
+									int c = calculatePrice(sender, getLocation(args[0]));
+									/* Check player has enough money */
+									if(EcoSetup.economy.has(p.getName(), c)) {
+										/* Withdraw money from player */
+		                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+		                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+		                            	} else {
+		                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+		                            	}
+		                            	/* Send QT */
+		                            	QT(sender, args[0], c);
+		                                return true;
+		                            } else {
+		                            	/* Player does not have enough money */
+		                                sender.sendMessage("You do not have enough money to go there.");
+		                                return true;
+									}
 								}
 							} else {
 								/* No price required or economy disabled, send QT */
@@ -2204,32 +2218,44 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			if(n >= start && n <= end) {
 				if(qt != null) {
 					/* If player is at a QT, get price from this location, if any */
-					double c = getLocations().getDouble("locations." + v + ".charge-from." + getLocation(qt));
+					double c = 0;
 					/* Is server running a valid economy? */
 					if(economyEnabled == true) {
-						if(getLocations().get("locations." + v + ".charge-from." + getLocation(qt)) != null) {
-							/* If price has been manually set */
-							if(c > 0) {
+						if(isFree(v) || isFree(qt)) {
+							/* One or both of these QTs are free, no price */
+							sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+						} else {
+							if(getLocations().get("locations." + v + ".charge-from." + getLocation(qt)) != null) {
+								c = getLocations().getDouble("locations." + v + ".charge-from." + getLocation(qt));
+								/* If price has been manually set */
+								if(c > 0) {
+									sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+								} else {
+									sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+								}
+							} else if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
+								/* If no price set, but server still requires payment for this QT */
+								c = calculatePrice(getLocation(qt), v);
 								sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
 							} else {
+								/* No price for this QT */
 								sender.sendMessage(ChatColor.AQUA + getLocationName(v));
 							}
-						} else if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
-							/* If no price set, but server still requires payment for this QT */
-							c = calculatePrice(getLocation(qt), v);
-							sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
-						} else {
-							/* No price for this QT */
-							sender.sendMessage(ChatColor.AQUA + getLocationName(v));
 						}
 					} else {
 						/* No valid economy found, no price */
 						sender.sendMessage(ChatColor.AQUA + getLocationName(v));
 					}
 				} else if(getConfig().getBoolean("free-by-default") == false && economyEnabled == true) {
-						/* Player is not at a QT. Calculate price. */
+					/* Player is not at a QT */
+					if(isFree(v) && getLocations().get("locations." + v + ".free") != null) {
+						/* QT is set to free, no price */
+						sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+					} else {
+						/* Calculate price */
 						int c = calculatePrice(sender, v);
 						sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+					}
 				} else {
 					/* No price required or economy disabled */
 					sender.sendMessage(ChatColor.AQUA + getLocationName(v));
@@ -2299,6 +2325,22 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			}
 		}
 		return true;
+	}
+	
+	public boolean isFree(String qt) {
+		boolean freeByDefault = false;
+		boolean qtFree = false; 
+		if(getConfig().get("free-by-default") != null) {
+			freeByDefault = getConfig().getBoolean("free-by-default");
+		} else {
+			freeByDefault = false;
+		}
+		if(getLocations().get("locations." + qt + ".free") != null) {
+			qtFree = getLocations().getBoolean("locations." + qt + ".free");
+		} else {
+			qtFree = freeByDefault;
+		}
+		return qtFree;
 	}
 	
 	public int calculatePrice(String from, String to) {
