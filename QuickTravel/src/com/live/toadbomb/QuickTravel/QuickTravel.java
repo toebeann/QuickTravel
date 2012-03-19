@@ -257,41 +257,51 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					/* Not authorised */
 					return false;
 				}
-			} else if(args[0].equalsIgnoreCase("price")) {
-				/* "/qt price" passed
-				 * Get arguments and deal with appropriately */
+			} else if(args[0].equalsIgnoreCase("price") || args[0].equalsIgnoreCase("charge")) {
+				/* "/qt price" passed */
 	    		if(sender.hasPermission("qt.admin.price")) {
-	    			if(args.length == 4) {
-	    				if(checkLocations(args[2]) == true && checkLocations(args[3]) == true) {
-	    					/* QTs exist, set price */
-							this.getLocations().set("locations." + getLocation(args[3]) + ".charge-from." + getLocation(args[2]), Double.parseDouble(args[1]));
-							this.saveLocations();
-							sender.sendMessage("Set price from " + ChatColor.AQUA + args[2] + ChatColor.WHITE + " to " + ChatColor.AQUA + args[3] + ChatColor.WHITE + " to " + ChatColor.GOLD + args[1]);
-							if(economyEnabled == false) {
-								/* Economy is disabled, warn user */
-								sender.sendMessage("[Warning] Economy is disabled, prices will have no effect.");
-							}
-						} else if(checkLocations(args[2]) != true) {
-							/* QT <a> does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " does not exist!");
-						} else if(checkLocations(args[3]) != true) {
-							/* QT <b> does not exist */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: " + ChatColor.AQUA + args[3] + ChatColor.GOLD + " does not exist!");
-						} else {
-							/* Unknown error */
-							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: Unexpected error!");
-						}
-						return true;
-	    			} else {
-						/* Invalid arguments, throw info message. */
-						sender.sendMessage("Sets the price from QT <a> to QT <b>.");
-						sender.sendMessage("/qt price <price> <a> <b>");
-						return true;
-					}
-				} else {
-					/* Not authorised */
+	    			QTPrice(sender, args);
+	    			return true;
+	    		} else {
+	    			/* Not authorised */
 					return false;
-				}
+	    		}
+			} else if(args[0].equalsIgnoreCase("free") || args[0].equalsIgnoreCase("f")) {
+				/* "/qt price" passed */
+	    		if(sender.hasPermission("qt.admin.free")) {
+	    			QTFree(sender, args);
+	    			return true;
+	    		} else {
+	    			/* Not authorised */
+					return false;
+	    		}
+			} else if(args[0].equalsIgnoreCase("discovery") || args[0].equalsIgnoreCase("discover") || args[0].equalsIgnoreCase("disc") || args[0].equalsIgnoreCase("d")) {
+				/* "/qt price" passed */
+	    		if(sender.hasPermission("qt.admin.discovery")) {
+	    			QTDiscovery(sender, args);
+	    			return true;
+	    		} else {
+	    			/* Not authorised */
+					return false;
+	    		}
+			} else if(args[0].equalsIgnoreCase("perms") || args[0].equalsIgnoreCase("perm") || args[0].equalsIgnoreCase("p")) {
+				/* "/qt price" passed */
+	    		if(sender.hasPermission("qt.admin.perms")) {
+	    			QTPerms(sender, args);
+	    			return true;
+	    		} else {
+	    			/* Not authorised */
+					return false;
+	    		}
+			} else if(args[0].equalsIgnoreCase("multiworld") || args[0].equalsIgnoreCase("multi") || args[0].equalsIgnoreCase("m")) {
+				/* "/qt price" passed */
+	    		if(sender.hasPermission("qt.admin.multiworld")) {
+	    			QTMultiworld(sender, args);
+	    			return true;
+	    		} else {
+	    			/* Not authorised */
+					return false;
+	    		}
 			} else if(args[0].equalsIgnoreCase("list")) { 
 				if(sender.hasPermission("qt.admin.list")) {
 					/* "/qt list" passed
@@ -1400,8 +1410,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								e = false;
 							}
 						}
-						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
-						this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".enabled", e);
 						this.saveLocations();
 						n++;
 					}
@@ -1429,8 +1439,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							e = false;
 						}
 					}
-					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
-					this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".enabled", e);
 					this.saveLocations();
 					return;
 				} else {
@@ -1451,10 +1461,10 @@ public class QuickTravel extends JavaPlugin implements Listener {
 	public void QTDisable(CommandSender sender, String[] args) {
 		/* Get arguments and deal with appropriately */
 		boolean w = false;
-		boolean toggle = false;
 		String world = "";
 		String set = "disabled";
 		boolean e = false;
+		boolean toggle = false;
 		if(args.length >= 2) {
 			if(args.length > 2) {
 				for(int i = 2; i < args.length; i++) {
@@ -1524,8 +1534,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								e = true;
 							}
 						}
-						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
-						this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".enabled", e);
 						this.saveLocations();
 						n++;
 					}
@@ -1553,8 +1563,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							e = true;
 						}
 					}
-					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been  " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
-					this.getLocations().set("locations." + qt + ".enabled", Boolean.toString(e));
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " has been " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".enabled", e);
 					this.saveLocations();
 					return;
 				} else {
@@ -1567,6 +1577,491 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Disables the selected QT.");
 			sender.sendMessage("/qt disable <name>");
+			return;
+		}
+	}
+	
+	public void QTPrice(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean reset = false;
+		double price = 0;
+		if(args.length == 4) {
+			try {
+				price = Double.parseDouble(args[3]);
+				reset = false;
+			} catch(NumberFormatException e) {
+				if(args[3].equalsIgnoreCase("reset")) {
+					reset = true;
+				} else {
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: " + ChatColor.AQUA + args[3] + ChatColor.GOLD + " is not a valid price!");
+					return;
+				}
+			}
+			if(checkLocations(args[1]) == true && checkLocations(args[2]) == true) {
+				/* QTs exist, set price */
+				String qt1 = getLocation(args[1]);
+				String qt1name = getLocationName(qt1);
+				String qt2 = getLocation(args[2]);
+				String qt2name = getLocationName(qt2);
+				if(reset == false) {
+					this.getLocations().set("locations." + qt2 + ".charge-from." + qt1, price);
+					this.saveLocations();
+					sender.sendMessage("Price from " + ChatColor.AQUA + qt1name + ChatColor.WHITE + " to " + ChatColor.AQUA + qt2name + ChatColor.WHITE + " set to " + ChatColor.GOLD + price + ChatColor.WHITE + ".");
+				} else {
+					this.getLocations().set("locations." + qt2 + ".charge-from." + qt1, null);
+					this.saveLocations();
+					sender.sendMessage("Price from " + ChatColor.AQUA + qt1name + ChatColor.WHITE + " to " + ChatColor.AQUA + qt2name + ChatColor.WHITE + " has been reset.");
+				}
+				if(economyEnabled == false) {
+					/* Economy is disabled, warn user */
+					sender.sendMessage("[Warning] Economy is disabled, prices will have no effect.");
+				}
+				return;
+			} else if(checkLocations(args[1]) != true) {
+				/* QT <a> does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+				return;
+			} else if(checkLocations(args[2]) != true) {
+				/* QT <b> does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " does not exist!");
+				return;
+			} else {
+				/* Unknown error */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set price: Unexpected error!");
+				return;
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets the price from QT <a> to QT <b>.");
+			sender.sendMessage("/qt price <a> <b> <price>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTFree(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean toggle = false;
+		boolean set = true;
+		if(args.length >= 3) {
+			if(args[2].equalsIgnoreCase("true")) {
+				toggle = false;
+				set = true;
+			} else if(args[2].equalsIgnoreCase("false")) {
+				toggle = false;
+				set = false;
+			} else if(args[2].equalsIgnoreCase("toggle")) {
+				toggle = true;
+			} else {
+				/* Invalid setting */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
+				return;
+			}
+			if(args.length > 3) {
+				for(int i = 3; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: No world given for -w!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".free") != null && getLocations().getBoolean("locations." + qt + ".free") == true) {
+								set = false;
+							} else {
+								set = true;
+							}
+						}
+						sender.sendMessage("Free travel to/from " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".free", set);
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".free") != null && getLocations().getBoolean("locations." + qt + ".free") == true) {
+							set = false;
+						} else {
+							set = true;
+						}
+					}
+					sender.sendMessage("Free travel to/from " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".free", set);
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets whether all travel to/from the selected QT is free.");
+			sender.sendMessage("/qt free <name | *> <true | false | toggle>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTDiscovery(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean toggle = false;
+		boolean set = true;
+		if(args.length >= 3) {
+			if(args[2].equalsIgnoreCase("true")) {
+				toggle = false;
+				set = true;
+			} else if(args[2].equalsIgnoreCase("false")) {
+				toggle = false;
+				set = false;
+			} else if(args[2].equalsIgnoreCase("toggle")) {
+				toggle = true;
+			} else {
+				/* Invalid setting */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
+				return;
+			}
+			if(args.length > 3) {
+				for(int i = 3; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: No world given for -w!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".require-discovery") != null && getLocations().getBoolean("locations." + qt + ".require-discovery") == true) {
+								set = false;
+							} else {
+								set = true;
+							}
+						}
+						sender.sendMessage("Require discovery for " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".require-discovery", set);
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".require-discovery") != null && getLocations().getBoolean("locations." + qt + ".require-discovery") == true) {
+							set = false;
+						} else {
+							set = true;
+						}
+					}
+					sender.sendMessage("Require discovery for " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".require-discovery", set);
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets whether discovery is required for the selected QT.");
+			sender.sendMessage("/qt discovery <name | *> <true | false | toggle>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTPerms(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean toggle = false;
+		boolean set = true;
+		if(args.length >= 3) {
+			if(args[2].equalsIgnoreCase("true")) {
+				toggle = false;
+				set = true;
+			} else if(args[2].equalsIgnoreCase("false")) {
+				toggle = false;
+				set = false;
+			} else if(args[2].equalsIgnoreCase("toggle")) {
+				toggle = true;
+			} else {
+				/* Invalid setting */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
+				return;
+			}
+			if(args.length > 3) {
+				for(int i = 3; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: No world given for -w!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".require-permissions") != null && getLocations().getBoolean("locations." + qt + ".require-permissions") == true) {
+								set = false;
+							} else {
+								set = true;
+							}
+						}
+						sender.sendMessage("Require permissions for " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".require-permissions", set);
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".require-permissions") != null && getLocations().getBoolean("locations." + qt + ".require-permissions") == true) {
+							set = false;
+						} else {
+							set = true;
+						}
+					}
+					sender.sendMessage("Require permissions for " + ChatColor.AQUA + qtname + ChatColor.WHITE + ": " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".require-permissions", set);
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets whether permissions are required for the selected QT.");
+			sender.sendMessage("/qt perms <name | *> <true | false | toggle>");
+			return;
+		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	public void QTMultiworld(CommandSender sender, String[] args) {
+		/* Get arguments and deal with appropriately */
+		boolean w = false;
+		String world = "";
+		boolean toggle = false;
+		boolean set = true;
+		if(args.length >= 3) {
+			if(args[2].equalsIgnoreCase("true")) {
+				toggle = false;
+				set = true;
+			} else if(args[2].equalsIgnoreCase("false")) {
+				toggle = false;
+				set = false;
+			} else if(args[2].equalsIgnoreCase("toggle")) {
+				toggle = true;
+			} else {
+				/* Invalid setting */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
+				return;
+			}
+			if(args.length > 3) {
+				for(int i = 3; i < args.length; i++) {
+					if(args[i].equalsIgnoreCase("-w")) {
+						/* -w parameter given */
+						if(args.length > i+1) {
+							w = true;
+							world = args[i+1];
+							i++;
+						} else {
+							/* No world given. */
+							if(args[1].equalsIgnoreCase("*")) {
+								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: No world given for -w!");
+								return;
+							}
+						}
+					} else {
+						/* Invalid parameter */
+						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+					}
+				}
+			}
+			if(args[1].equalsIgnoreCase("*")) {
+				List<Object> locList = (List<Object>) getLocations().getList("list");
+				if(locList != null) {
+					int n = 0;
+					ListIterator<Object> li = locList.listIterator();
+					while(li.hasNext()) {
+						String qt = li.next().toString();
+						String qtname = getLocationName(qt);
+						if(w == true) {
+							if(!getLocations().getString("locations." + qt + ".world").equalsIgnoreCase(world)) {
+								continue;
+							}
+						}
+						if(toggle == true) {
+							if(getLocations().get("locations." + qt + ".multiworld") != null && getLocations().getBoolean("locations." + qt + ".multiworld") == true) {
+								set = false;
+							} else {
+								set = true;
+							}
+						}
+						sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " is multiworld: " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+						this.getLocations().set("locations." + qt + ".multiworld", set);
+						this.saveLocations();
+						n++;
+					}
+					if(n > 0) {
+						sender.sendMessage("Done.");
+					} else {
+						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: There are no QTs in world " + ChatColor.AQUA + world + ChatColor.WHITE + "!");
+					}
+					return;
+				} else {
+					/* Player has not made any QTs yet */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: You have not made any QTs yet!");
+					return;
+				}
+			} else {
+				if(checkLocations(args[1]) == true) {
+					String qt = getLocation(args[1]);
+					String qtname = getLocationName(qt);
+					if(toggle == true) {
+						if(getLocations().get("locations." + qt + ".multiworld") != null && getLocations().getBoolean("locations." + qt + ".multiworld") == true) {
+							set = false;
+						} else {
+							set = true;
+						}
+					}
+					sender.sendMessage(ChatColor.AQUA + qtname + ChatColor.WHITE + " is multiworld: " + ChatColor.GOLD + set + ChatColor.WHITE + ".");
+					this.getLocations().set("locations." + qt + ".multiworld", set);
+					this.saveLocations();
+					return;
+				} else {
+					/* QT does not exist */
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+					return;
+				}
+			}
+		} else {
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets whether the selected QT is multiworld.");
+			sender.sendMessage("/qt multiworld <name | *> <true | false | toggle>");
 			return;
 		}
 	}
