@@ -11,6 +11,7 @@ import java.util.logging.Logger;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -68,6 +69,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		this.getConfig().addDefault("withdraw-from-player-not-bank", true);
 		this.getConfig().addDefault("free-by-default", false);
 		this.getConfig().addDefault("price-multiplier", 0.8);
+		this.getConfig().addDefault("multiworld-multiplier", 1.2);
+		this.getConfig().addDefault("price-multiplier", 500);
 		this.getConfig().addDefault("free-from-qts", false);
 		this.getConfig().options().copyDefaults(true);
 		if(getConfig().get("radius-when-only-primary-set") != null) { 
@@ -386,6 +389,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						 * prepare to send QT */
 						Player p = (Player)sender;
 						String qt = checkPlayerQT(sender);
+						double tax = getConfig().getDouble("multiworld-tax");
 						if(qt != null) {
 							/* Player is at a QT location */
 							if(qt.equalsIgnoreCase(args[0])) {
@@ -394,18 +398,42 @@ public class QuickTravel extends JavaPlugin implements Listener {
 								return true;
 							}
 							/* Check economy */
-							double c = 0; 
+							double c = 0;
 							if(economyEnabled == true) {
 								/* Economy is enabled */
 								if((isFree(getLocation(args[0])) && getLocations().get("locations." + getLocation(args[0]) + ".free") != null) || (isFree(getLocation(qt)) && getLocations().get("locations." + getLocation(qt) + ".free") != null)) {
-									/* One or both of these QTs are free
-									 * Send QT */
-									QT(sender, args[0], 0);
-	                                return true;
+									/* One or both of these QTs are free */
+									if(getLocations().getString("locations." + getLocation(qt) + ".world").equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+										/* Send QT */
+										QT(sender, args[0], 0);
+		                                return true;
+									} else {
+										/* Charge multiworld tax
+										 * Check player has enough money */
+										c = c + tax;
+										if(EcoSetup.economy.has(p.getName(), c)) {
+											/* Withdraw money from player */
+			                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+			                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+			                            	} else {
+			                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+			                            	}
+			                            	/* Send QT */
+			                            	QT(sender, args[0], c);
+			                                return true;
+			                            } else {
+			                            	/* Player does not have enough money */
+			                                sender.sendMessage("You do not have enough money to go there.");
+			                                return true;
+										}
+									}
 								} else {
 									if(getLocations().get("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt)) != null) {
 										/* Price has been manually set for QT */
 										c = getLocations().getDouble("locations." + getLocation(args[0]) + ".charge-from." + getLocation(qt));
+										if(!getLocations().getString("locations." + getLocation(qt) + ".world").equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+											c = c + tax;
+										}
 										if(c > 0) {
 											/* Check player has enough money */
 											if(EcoSetup.economy.has(p.getName(), c)) {
@@ -434,6 +462,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 										if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
 											/* QT should not be free, calculate price */
 											c = calculatePrice(getLocation(qt), getLocation(args[0]));
+											if(!getLocations().getString("locations." + getLocation(qt) + ".world").equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+												c = c + tax;
+											}
 											/* Check player has enough money */
 											if(EcoSetup.economy.has(p.getName(), c)) {
 												/* Withdraw money from player */
@@ -451,9 +482,31 @@ public class QuickTravel extends JavaPlugin implements Listener {
 				                                return true;
 											}
 										} else {
-											/* QT should be free, send QT */
-											QT(sender, args[0], 0);
-											return true;																	
+											/* QT should be free QT */
+											if(getLocations().getString("locations." + getLocation(qt) + ".world").equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+												/* Send QT */
+												QT(sender, args[0], 0);
+				                                return true;
+											} else {
+												/* Charge multiworld tax
+												 * Check player has enough money */
+												c = c + tax;
+												if(EcoSetup.economy.has(p.getName(), c)) {
+													/* Withdraw money from player */
+					                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+					                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+					                            	} else {
+					                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+					                            	}
+					                            	/* Send QT */
+					                            	QT(sender, args[0], c);
+					                                return true;
+					                            } else {
+					                            	/* Player does not have enough money */
+					                                sender.sendMessage("You do not have enough money to go there.");
+					                                return true;
+												}
+											}																	
 										}
 									}
 								}
@@ -465,17 +518,66 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						} else if(getConfig().getBoolean("qt-from-anywhere") == true) {
 							/* Player is not at a QT location,
 							 * however QTs are enabled from anywhere */
-							if(getConfig().getBoolean("free-by-default") == false && economyEnabled == true) {
-								/* Economy is enabled
-								 * QTs are not free by default
-								 * Check whether destination is free
-								 * and calculate if not */
-								if(isFree(getLocation(args[0])) && getLocations().get("locations." + getLocation(args[0]) + ".free") != null) {
-									/* QT is free, send */
-									QT(sender, args[0], 0);
-									return true;
+							if(economyEnabled == true) {
+								if(getConfig().getBoolean("free-by-default") == false) {
+									/* Economy is enabled
+									 * QTs are not free by default
+									 * Check whether destination is free
+									 * and calculate if not */
+									if(isFree(getLocation(args[0])) && getLocations().get("locations." + getLocation(args[0]) + ".free") != null) {
+										/* QT is free, send */
+										if(p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+											/* Send QT */
+											QT(sender, args[0], 0);
+			                                return true;
+										} else {
+											/* Charge multiworld tax
+											 * Check player has enough money */
+											double c = tax;
+											if(EcoSetup.economy.has(p.getName(), c)) {
+												/* Withdraw money from player */
+				                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+				                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+				                            	} else {
+				                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+				                            	}
+				                            	/* Send QT */
+				                            	QT(sender, args[0], c);
+				                                return true;
+				                            } else {
+				                            	/* Player does not have enough money */
+				                                sender.sendMessage("You do not have enough money to go there.");
+				                                return true;
+											}
+										}
+									} else {
+										double c = calculatePrice(sender, getLocation(args[0]));
+										if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+											c = c + tax;
+										}
+										/* Check player has enough money */
+										if(EcoSetup.economy.has(p.getName(), c)) {
+											/* Withdraw money from player */
+			                            	if(EcoSetup.economy.hasBankSupport() && getConfig().getBoolean("withdraw-from-player-not-bank") == false) {
+			                            		EcoSetup.economy.bankWithdraw(p.getName(), c);
+			                            	} else {
+			                            		EcoSetup.economy.withdrawPlayer(p.getName(), c);
+			                            	}
+			                            	/* Send QT */
+			                            	QT(sender, args[0], c);
+			                                return true;
+			                            } else {
+			                            	/* Player does not have enough money */
+			                                sender.sendMessage("You do not have enough money to go there.");
+			                                return true;
+										}
+									}
 								} else {
-									int c = calculatePrice(sender, getLocation(args[0]));
+									/* No price required */
+									double c = 0;
+									if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + getLocation(args[0]) + ".world"))) {
+										c = c + tax;
+									}
 									/* Check player has enough money */
 									if(EcoSetup.economy.has(p.getName(), c)) {
 										/* Withdraw money from player */
@@ -494,9 +596,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 									}
 								}
 							} else {
-								/* No price required or economy disabled, send QT */
+								/* Economy disabled, send QT */
 								QT(sender, args[0], 0);
-								return true;																	
+								return true;
 							}
 						} else {
 							/* Player is not at a valid location to QT */
@@ -526,7 +628,8 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		}
 		
 		Player p = (Player)sender;
-        World w = p.getWorld();
+		Server s = getServer();
+        World w = s.getWorld(getLocations().getString("locations." + getLocation(rQT) + ".world"));
         if(getLocations().get("locations." + getLocation(rQT) + ".coords.dest") != null) {
           double x = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.x");
           double y = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.y");
@@ -1296,6 +1399,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 						this.getLocations().set("locations." + qt + ".coords.primary.x", coord.getX());
 						this.getLocations().set("locations." + qt + ".coords.primary.y", coord.getY());
 						this.getLocations().set("locations." + qt + ".coords.primary.z", coord.getZ());
+						this.getLocations().set("locations." + qt + ".coords.dest.x", coord.getX());
+						this.getLocations().set("locations." + qt + ".coords.dest.y", coord.getY());
+						this.getLocations().set("locations." + qt + ".coords.dest.z", coord.getZ());
+						this.getLocations().set("locations." + qt + ".coords.dest.pitch", coord.getPitch());
+						this.getLocations().set("locations." + qt + ".coords.dest.yaw", coord.getYaw());
 						this.saveLocations();
 						sender.sendMessage("Moved QT " + ChatColor.AQUA + qtname + ChatColor.WHITE + ".");
 						return;
@@ -2109,7 +2217,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 					ListIterator<Object> li = locList.listIterator();
 					while(li.hasNext()) {
 						String v = li.next().toString();
-						if(runChecks(sender, getLocationName(v), false) == true) {
+						if(runChecks(sender, getLocationName(v), false) == true && qt != getLocationName(v)) {
 							destList.add(v);
 						}
 					}
@@ -2178,7 +2286,7 @@ public class QuickTravel extends JavaPlugin implements Listener {
 							dColour = ChatColor.GRAY;
 						}
 					}
-					String x = ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | [" + w + "] | " + eColour + e + ChatColor.WHITE + " | " + dColour + d;
+					String x = "[" + w + "] " + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + eColour + e + ChatColor.WHITE + " | " + dColour + d;
 					fullList.add(x);
 				}
 				double dpages = Math.ceil((double)fullList.size() / (double)8);
@@ -2222,54 +2330,92 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		int start = ((page - 1) * 8) + 1;
 		int end = start + 7;
 		int n = 0;
+		Player p = (Player)sender;
+		String pWorld = p.getWorld().getName();
+		String wString = "";
+		double tax = getConfig().getDouble("multiworld-tax");
 		ListIterator<Object> destLI = destList.listIterator();
 		while(destLI.hasNext()) {
 			String v = destLI.next().toString();
+			if(!getLocations().getString("locations." + v + ".world").equalsIgnoreCase(pWorld)) {
+				wString = "[" + getLocations().getString("locations." + v + ".world") + "] ";
+			} else {
+				wString = "";
+			}
 			n++;
 			if(n >= start && n <= end) {
+				double c = 0;
 				if(qt != null) {
 					/* If player is at a QT, get price from this location, if any */
-					double c = 0;
 					/* Is server running a valid economy? */
 					if(economyEnabled == true) {
 						if(isFree(v) || isFree(qt)) {
 							/* One or both of these QTs are free, no price */
-							sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+							if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+								c = c + tax;
+								sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+							} else {
+								sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
+							}
 						} else {
 							if(getLocations().get("locations." + v + ".charge-from." + getLocation(qt)) != null) {
 								c = getLocations().getDouble("locations." + v + ".charge-from." + getLocation(qt));
+								if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+									c = c + tax;
+								}
 								/* If price has been manually set */
 								if(c > 0) {
-									sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+									sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
 								} else {
-									sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+									sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE);
 								}
 							} else if((getConfig().getBoolean("qt-from-anywhere") == true && getConfig().getBoolean("free-from-qts") == false) || (getConfig().getBoolean("qt-from-anywhere") == false && getConfig().getBoolean("free-by-default") == false)) {
 								/* If no price set, but server still requires payment for this QT */
 								c = calculatePrice(getLocation(qt), v);
-								sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+								if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+									c = c + tax;
+								}
+								sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
 							} else {
 								/* No price for this QT */
-								sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+								if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+									c = c + tax;
+									sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+								} else {
+									sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
+								}
 							}
 						}
 					} else {
 						/* No valid economy found, no price */
-						sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+						sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
 					}
-				} else if(getConfig().getBoolean("free-by-default") == false && economyEnabled == true) {
-					/* Player is not at a QT */
-					if(isFree(v) && getLocations().get("locations." + v + ".free") != null) {
-						/* QT is set to free, no price */
-						sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+				} else if(getConfig().getBoolean("free-by-default") == false) {
+					if(economyEnabled == true) {
+						/* Player is not at a QT */
+						if(isFree(v) && getLocations().get("locations." + v + ".free") != null) {
+							/* QT is set to free, no price */
+							if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+								c = c + tax;
+								sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+							} else {
+								sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
+							}
+						} else {
+							/* Calculate price */
+							c = calculatePrice(sender, v);
+							if(!p.getWorld().getName().equalsIgnoreCase(getLocations().getString("locations." + v + ".world"))) {
+								c = c + tax;
+							}
+							sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+						}
 					} else {
-						/* Calculate price */
-						int c = calculatePrice(sender, v);
-						sender.sendMessage(ChatColor.AQUA + getLocationName(v) + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(c));
+						/* Economy disabled */
+						sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
 					}
 				} else {
 					/* No price required or economy disabled */
-					sender.sendMessage(ChatColor.AQUA + getLocationName(v));
+					sender.sendMessage(wString + ChatColor.AQUA + getLocationName(v));
 				}
 			}
 		}
@@ -2308,14 +2454,52 @@ public class QuickTravel extends JavaPlugin implements Listener {
 			}
 			return false;
 		}
+		/* Multiworld checks */
+		String qt = checkPlayerQT(p);
 		String pWorld = p.getWorld().getName();
 		String locWorld = getLocations().getString("locations." + getLocation(rQT) + ".world");
 		if(!pWorld.equals(locWorld)) {
-			// Check player is on correct world
-			if(e) {
-				sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+			/* Player not on correct world, check multiworld settings */
+			if(qt != null) {
+				/* Player is at a QT, check it */
+				if(getLocations().get("locations." + getLocation(qt) + ".multiworld") != null && getLocations().getBoolean("locations." + getLocation(qt) + ".multiworld") == false) {
+					/* If 'multiworld' is false */
+					if(e) {
+						sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+					}
+					return false;
+				} else if(getLocations().get("locations." + getLocation(qt) + ".multiworld") == null) {
+					/* 'multiworld' not set for QT, use default */
+					if(getConfig().getBoolean("multiworld-by-default") == false) {
+						if(e) {
+							sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+						}
+						return false;
+					}
+				}
+			} else if(getConfig().getBoolean("multiworld-by-default") == false) {
+				/* Player not at QT and server multiworld is off by default */
+				if(e) {
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+				}
+				return false;
 			}
-			return false;
+			/* Now check the destination QT */
+			if(getLocations().get("locations." + getLocation(rQT) + ".multiworld") != null && getLocations().getBoolean("locations." + getLocation(rQT) + ".multiworld") == false) {
+				/* If 'multiworld' is false */
+				if(e) {
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+				}
+				return false;
+			} else if(getLocations().get("locations." + getLocation(rQT) + ".multiworld") == null) {
+				/* 'multiworld' not set for QT, use default */
+				if(getConfig().getBoolean("multiworld-by-default") == false) {
+					if(e) {
+						sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] You are not on the correct World!");
+					}
+					return false;
+				}
+			}
 		}
 		boolean discovered = false;
 		if(getLocations().get("locations." + getLocation(rQT) + ".require-discovery") != null) {
@@ -2429,9 +2613,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		double xFrom = 0;
 		double yFrom = 0;
 		double zFrom = 0;
+		String wFrom = getLocations().getString("locations." + from + ".world");
 		double xTo = 0;
 		double yTo = 0;
 		double zTo = 0;
+		String wTo = getLocations().getString("locations." + to + ".world");
 		if(getLocations().getString("locations." + from + ".coords.dest") != null) {
 			xFrom = getLocations().getDouble("locations." + from + ".coords.dest.x");
 			yFrom = getLocations().getDouble("locations." + from + ".coords.dest.y");
@@ -2454,6 +2640,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		double yDiff = calculateDiff(yFrom, yTo);
 		double zDiff = calculateDiff(zFrom, zTo);
 		double m = getConfig().getDouble("price-multiplier");
+		if(!wFrom.equalsIgnoreCase(wTo)) {
+			m = getConfig().getDouble("multiworld-multiplier");
+		}
 		return (int) Math.ceil((xDiff + yDiff + zDiff) * m);
 	}
 	
@@ -2463,9 +2652,11 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		double xFrom = coord.getX();
 		double yFrom = coord.getY();
 		double zFrom = coord.getZ();
+		String wFrom = p.getWorld().getName();
 		double xTo = 0;
 		double yTo = 0;
 		double zTo = 0;
+		String wTo = getLocations().getString("locations." + to + ".world");
 		if(getLocations().getString("locations." + to + ".coords.dest") != null) {
 			xTo = getLocations().getDouble("locations." + to + ".coords.dest.x");
 			yTo = getLocations().getDouble("locations." + to + ".coords.dest.y");
@@ -2479,6 +2670,9 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		double yDiff = calculateDiff(yFrom, yTo);
 		double zDiff = calculateDiff(zFrom, zTo);
 		double m = getConfig().getDouble("price-multiplier");
+		if(!wFrom.equalsIgnoreCase(wTo)) {
+			m = getConfig().getDouble("multiworld-multiplier");
+		}
 		return (int) Math.ceil((xDiff + yDiff + zDiff) * m);
 	}
 	

@@ -14,7 +14,6 @@ permissions:
     description: Gives access to all QuickTravel admin commands.
     default: op
     children:
-      qt.user: true
       qt.admin.create: true
       qt.admin.rename: true
       qt.admin.type: true
@@ -30,7 +29,6 @@ permissions:
       qt.admin.perms: true
       qt.admin.multiworld: true
       qt.admin.list: true
-      qt.use.*: true
   qt.admin.create:
     description: Gives access to /qt create
     default: false
