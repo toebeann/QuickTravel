@@ -10,7 +10,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Effect;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -628,23 +630,331 @@ public class QuickTravel extends JavaPlugin implements Listener {
 		}
 		
 		Player p = (Player)sender;
+		Location loc = p.getLocation();
 		Server s = getServer();
         World w = s.getWorld(getLocations().getString("locations." + getLocation(rQT) + ".world"));
         if(getLocations().get("locations." + getLocation(rQT) + ".coords.dest") != null) {
-          double x = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.x");
-          double y = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.y");
-          double z = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.z");
-          float pitch = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.pitch");
-          float yaw = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.yaw");
-          Location dest = new Location(w, x, y, z, yaw, pitch);
-          p.teleport(dest);
+        	double x = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.x");
+        	double y = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.y");
+        	double z = getLocations().getDouble("locations." + getLocation(rQT) + ".coords.dest.z");
+        	float pitch = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.pitch");
+        	float yaw = getLocations().getInt("locations." + getLocation(rQT) + ".coords.dest.yaw");
+        	Location dest = new Location(w, x, y, z, yaw, pitch);
+        	Location d = checkSafe(dest, p);
+        	p.teleport(d);
+        	QTEffect(loc, d);
         } else {
-          double x = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.x");
-          double y = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.y");
-          double z = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.z");
-          Location dest = new Location(w, x, y, z);
-          p.teleport(dest);
+        	double x = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.x");
+        	double y = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.y");
+        	double z = getLocations().getInt("locations." + getLocation(rQT) + ".coords.primary.z");
+        	Location dest = new Location(w, x, y, z);
+        	Location d = checkSafe(dest, p);
+        	p.teleport(d);
+        	QTEffect(loc, d);
 		}
+	}
+	
+	public Location checkSafe(Location d, Player p) {
+		World w = d.getWorld();
+		double x = d.getX();
+		double y = d.getY();
+		double z = d.getZ();
+		Location d2 = new Location(w, x+1, y, z);
+    	Location d3 = new Location(w, x+1, y, z+1);
+    	Location d4 = new Location(w, x, y, z+1);
+    	Location d5 = new Location(w, x-1, y, z+1);
+    	Location d6 = new Location(w, x-1, y, z);
+    	Location d7 = new Location(w, x-1, y, z-1);
+    	Location d8 = new Location(w, x, y, z-1);
+    	Location d9 = new Location(w, x+1, y, z-1);
+    	Location db = new Location(w, x, y+1, z);
+    	Location db2 = new Location(w, x+1, y+1, z);
+    	Location db3 = new Location(w, x+1, y+1, z+1);
+    	Location db4 = new Location(w, x, y+1, z+1);
+    	Location db5 = new Location(w, x-1, y+1, z+1);
+    	Location db6 = new Location(w, x-1, y+1, z);
+    	Location db7 = new Location(w, x-1, y+1, z-1);
+    	Location db8 = new Location(w, x, y+1, z-1);
+    	Location db9 = new Location(w, x+1, y+1, z-1);
+    	Location dbb = new Location(w, x, y+2, z);
+    	Location dbb2 = new Location(w, x+1, y+2, z);
+    	Location dbb3 = new Location(w, x+1, y+2, z+1);
+    	Location dbb4 = new Location(w, x, y+2, z+1);
+    	Location dbb5 = new Location(w, x-1, y+2, z+1);
+    	Location dbb6 = new Location(w, x-1, y+2, z);
+    	Location dbb7 = new Location(w, x-1, y+2, z-1);
+    	Location dbb8 = new Location(w, x, y+2, z-1);
+    	Location dbb9 = new Location(w, x+1, y+2, z-1);
+    	Location dc = new Location(w, x, y-1, z);
+    	Location dc2 = new Location(w, x+1, y-1, z);
+    	Location dc3 = new Location(w, x+1, y-1, z+1);
+    	Location dc4 = new Location(w, x, y-1, z+1);
+    	Location dc5 = new Location(w, x-1, y-1, z+1);
+    	Location dc6 = new Location(w, x-1, y-1, z);
+    	Location dc7 = new Location(w, x-1, y-1, z-1);
+    	Location dc8 = new Location(w, x, y-1, z-1);
+    	Location dc9 = new Location(w, x+1, y-1, z-1);
+    	Location dcc = new Location(w, x, y-2, z);
+    	Location dcc2 = new Location(w, x+1, y-2, z);
+    	Location dcc3 = new Location(w, x+1, y-2, z+1);
+    	Location dcc4 = new Location(w, x, y-2, z+1);
+    	Location dcc5 = new Location(w, x-1, y-2, z+1);
+    	Location dcc6 = new Location(w, x-1, y-2, z);
+    	Location dcc7 = new Location(w, x-1, y-2, z-1);
+    	Location dcc8 = new Location(w, x, y-2, z-1);
+    	Location dcc9 = new Location(w, x+1, y-2, z-1);
+    	boolean fix = false;
+		if(!d.getBlock().isEmpty()) {
+			d.getBlock().setType(Material.AIR);
+			fix = true;
+    	}
+		if (d2.getBlock().getType() == Material.LAVA || d2.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d2.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d3.getBlock().getType() == Material.LAVA || d3.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d3.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d4.getBlock().getType() == Material.LAVA || d4.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d4.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d5.getBlock().getType() == Material.LAVA || d5.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d5.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d6.getBlock().getType() == Material.LAVA || d6.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d6.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d7.getBlock().getType() == Material.LAVA || d7.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d7.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d8.getBlock().getType() == Material.LAVA || d8.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d8.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (d9.getBlock().getType() == Material.LAVA || d9.getBlock().getType() == Material.STATIONARY_LAVA) {
+			d9.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		
+		if(!db.getBlock().isEmpty()) {
+			db.getBlock().setType(Material.AIR);
+			fix = true;
+    	}
+		if (db2.getBlock().getType() == Material.LAVA || db2.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db2.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db3.getBlock().getType() == Material.LAVA || db3.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db3.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db4.getBlock().getType() == Material.LAVA || db4.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db4.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db5.getBlock().getType() == Material.LAVA || db5.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db5.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db6.getBlock().getType() == Material.LAVA || db6.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db6.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db7.getBlock().getType() == Material.LAVA || db7.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db7.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db8.getBlock().getType() == Material.LAVA || db8.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db8.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (db9.getBlock().getType() == Material.LAVA || db9.getBlock().getType() == Material.STATIONARY_LAVA) {
+			db9.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		
+		if(dbb.getBlock().getType() == Material.LAVA || dbb.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+    	}
+		if (dbb2.getBlock().getType() == Material.LAVA || dbb2.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb2.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb3.getBlock().getType() == Material.LAVA || dbb3.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb3.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb4.getBlock().getType() == Material.LAVA || dbb4.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb4.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb5.getBlock().getType() == Material.LAVA || dbb5.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb5.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb6.getBlock().getType() == Material.LAVA || dbb6.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb6.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb7.getBlock().getType() == Material.LAVA || dbb7.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb7.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb8.getBlock().getType() == Material.LAVA || dbb8.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb8.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		if (dbb9.getBlock().getType() == Material.LAVA || dbb9.getBlock().getType() == Material.STATIONARY_LAVA) {
+			dbb9.getBlock().setType(Material.GLASS);
+			dbb.getBlock().setType(Material.GLASS);
+			fix = true;
+		}
+		
+		if(dc.getBlock().getType() == Material.LAVA || dc.getBlock().getType() == Material.STATIONARY_LAVA || dc.getBlock().isEmpty()) {
+			dc.getBlock().setType(Material.GLASS);
+			fix = true;
+			if (dc2.getBlock().getType() == Material.LAVA || dc2.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc2.getBlock().setType(Material.GLASS);
+			}
+			if (dc3.getBlock().getType() == Material.LAVA || dc3.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc3.getBlock().setType(Material.GLASS);
+			}
+			if (dc4.getBlock().getType() == Material.LAVA || dc4.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc4.getBlock().setType(Material.GLASS);
+			}
+			if (dc5.getBlock().getType() == Material.LAVA || dc5.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc5.getBlock().setType(Material.GLASS);
+			}
+			if (dc6.getBlock().getType() == Material.LAVA || dc6.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc6.getBlock().setType(Material.GLASS);
+			}
+			if (dc7.getBlock().getType() == Material.LAVA || dc7.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc7.getBlock().setType(Material.GLASS);
+			}
+			if (dc8.getBlock().getType() == Material.LAVA || dc8.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc8.getBlock().setType(Material.GLASS);
+			}
+			if (dc9.getBlock().getType() == Material.LAVA || dc9.getBlock().getType() == Material.STATIONARY_LAVA) {
+				dc9.getBlock().setType(Material.GLASS);
+			}
+    	} else {
+    		if (d2.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc2.getBlock().setType(Material.GLASS);
+    		}
+    		if (d3.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc3.getBlock().setType(Material.GLASS);
+    		}
+    		if (d4.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc4.getBlock().setType(Material.GLASS);
+    		}
+    		if (d5.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc5.getBlock().setType(Material.GLASS);
+    		}
+    		if (d6.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc6.getBlock().setType(Material.GLASS);
+    		}
+    		if (d7.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc7.getBlock().setType(Material.GLASS);
+    		}
+    		if (d8.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc8.getBlock().setType(Material.GLASS);
+    		}
+    		if (d9.getBlock().getType() == Material.GLASS && fix == true) {
+    			dc9.getBlock().setType(Material.GLASS);
+    		}
+    	}
+		
+		if ((dcc.getBlock().getType() == Material.LAVA || dcc.getBlock().getType() == Material.STATIONARY_LAVA) && (dc.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc2.getBlock().getType() == Material.LAVA || dcc2.getBlock().getType() == Material.STATIONARY_LAVA) && (dc2.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc2.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc3.getBlock().getType() == Material.LAVA || dcc3.getBlock().getType() == Material.STATIONARY_LAVA) && (dc3.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc3.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc4.getBlock().getType() == Material.LAVA || dcc4.getBlock().getType() == Material.STATIONARY_LAVA) && (dc4.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc4.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc5.getBlock().getType() == Material.LAVA || dcc5.getBlock().getType() == Material.STATIONARY_LAVA) && (dc5.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc5.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc6.getBlock().getType() == Material.LAVA || dcc6.getBlock().getType() == Material.STATIONARY_LAVA) && (dc6.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc6.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc7.getBlock().getType() == Material.LAVA || dcc7.getBlock().getType() == Material.STATIONARY_LAVA) && (dc7.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc7.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc8.getBlock().getType() == Material.LAVA || dcc8.getBlock().getType() == Material.STATIONARY_LAVA) && (dc8.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc8.getBlock().setType(Material.GLASS);
+		}
+		if ((dcc9.getBlock().getType() == Material.LAVA || dcc9.getBlock().getType() == Material.STATIONARY_LAVA) && (dc9.getBlock().getType() == Material.GLASS && fix == true)) {
+			dcc9.getBlock().setType(Material.GLASS);
+		}
+		
+		return d;
+	}
+	
+	public void QTEffect(Location p, Location d) {
+		World w = d.getWorld();
+		double x = d.getX();
+		double y = d.getY();
+		double z = d.getZ();
+		Location d2 = new Location(w, x+1, y, z);
+    	Location d3 = new Location(w, x+1, y, z+1);
+    	Location d4 = new Location(w, x, y, z+1);
+    	Location d5 = new Location(w, x-1, y, z+1);
+    	Location d6 = new Location(w, x-1, y, z);
+    	Location d7 = new Location(w, x-1, y, z-1);
+    	Location d8 = new Location(w, x, y, z-1);
+    	Location d9 = new Location(w, x+1, y, z-1);
+    	World pw = p.getWorld();
+    	x = p.getX();
+		y = p.getY();
+		z = p.getZ();
+		Location p2 = new Location(pw, x+1, y, z);
+    	Location p3 = new Location(pw, x+1, y, z+1);
+    	Location p4 = new Location(pw, x, y, z+1);
+    	Location p5 = new Location(pw, x-1, y, z+1);
+    	Location p6 = new Location(pw, x-1, y, z);
+    	Location p7 = new Location(pw, x-1, y, z-1);
+    	Location p8 = new Location(pw, x, y, z-1);
+    	Location p9 = new Location(pw, x+1, y, z-1);
+    	p.getWorld().playEffect(p, Effect.ENDER_SIGNAL, null);
+    	w.playEffect(p2, Effect.SMOKE, 4);
+    	w.playEffect(p3, Effect.SMOKE, 4);
+    	w.playEffect(p4, Effect.SMOKE, 4);
+    	w.playEffect(p5, Effect.SMOKE, 4);
+    	w.playEffect(p6, Effect.SMOKE, 4);
+    	w.playEffect(p7, Effect.SMOKE, 4);
+    	w.playEffect(p8, Effect.SMOKE, 4);
+    	w.playEffect(p9, Effect.SMOKE, 4);
+        p.getWorld().playEffect(p, Effect.GHAST_SHOOT, null);
+        p.getWorld().playEffect(p, Effect.EXTINGUISH, null);
+        w.playEffect(d, Effect.ENDER_SIGNAL, null);
+    	w.playEffect(d2, Effect.SMOKE, 4);
+    	w.playEffect(d3, Effect.SMOKE, 4);
+    	w.playEffect(d4, Effect.SMOKE, 4);
+    	w.playEffect(d5, Effect.SMOKE, 4);
+    	w.playEffect(d6, Effect.SMOKE, 4);
+    	w.playEffect(d7, Effect.SMOKE, 4);
+    	w.playEffect(d8, Effect.SMOKE, 4);
+    	w.playEffect(d9, Effect.SMOKE, 4);
+    	w.playEffect(d, Effect.GHAST_SHOOT, null);
+        w.playEffect(d, Effect.EXTINGUISH, null);
 	}
 	
 	@SuppressWarnings({ "unchecked", "unused" })

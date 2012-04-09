@@ -1,6 +1,6 @@
 name: QuickTravel
 main: com.live.toadbomb.QuickTravel.QuickTravel
-version: 0.6
+version: 0.7a
 description: >
              Allows for fast multi-destination point-to-point travel with optional fees.
 commands:
@@ -79,5 +79,5 @@ permissions:
     default: false
   qt.user:
     description: Enables use of the QuickTravel plugin.
-    default: false
+    default: op
 softdepend: [Vault]
