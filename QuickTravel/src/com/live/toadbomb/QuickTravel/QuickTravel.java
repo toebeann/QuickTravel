@@ -21,6 +21,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import com.live.toadbomb.QuickTravel.QuickTravelLocation.Type;
 
@@ -72,7 +73,9 @@ public class QuickTravel extends JavaPlugin implements Listener
 	/**
 	 * FX to display when teleporting in wilderness (not from a QT) 
 	 */
-	private QuickTravelFX wildernessDepartureFX = new QuickTravelFX(32);
+	private QuickTravelFX wildernessDepartureFX = new QuickTravelFXDeparture(32);
+	
+	private BukkitTask warmUpCoolDownTask;
 
 	/**
 	 * Get the configured options
@@ -133,11 +136,19 @@ public class QuickTravel extends JavaPlugin implements Listener
 		
 		// New, load the locations from the config
 		this.locationManager.load();
+		
+		// Task to call every tick, which will handle the warm up and cool down for us
+		this.warmUpCoolDownTask = this.getServer().getScheduler().runTaskTimer(this, this.locationManager, 1, 1);
 	}
 	
 	@Override
 	public void onDisable()
 	{
+		if (this.warmUpCoolDownTask != null)
+		{
+			this.warmUpCoolDownTask.cancel();
+		}
+		
 		this.locationManager = null;
 		this.options = null;
 		
@@ -149,6 +160,8 @@ public class QuickTravel extends JavaPlugin implements Listener
 	{
 		Player player = event.getPlayer();
 		String playerName = player.getName();
+		
+		if (!player.hasPermission("qt.user")) return;
 
 		QuickTravelLocation qt = this.locationManager.getLocationAt(player.getLocation());
 		
@@ -168,8 +181,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			{
 				if (!qt.equals(playerAt.get(playerName)))
 				{
-					player.sendMessage(ChatColor.BLUE + "You are now in range of " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
-					player.sendMessage("Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
+					player.sendMessage(ChatColor.BLUE + "You have arrived at " + ChatColor.AQUA + qt + ChatColor.BLUE + ". Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 				}
 						
 				playerAt.put(playerName, qt);
@@ -513,6 +525,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 	 * @param args
 	 * @param player
 	 */
+	@SuppressWarnings("cast")
 	public void quickTravel(String[] args, Player player)
 	{
 		try
@@ -523,6 +536,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 			return;
 		}
 		catch (NumberFormatException e) {}
+		
+		int coolDownTicksRemaining = this.locationManager.getPlayerTeleportCooldown(player);
+		if (coolDownTicksRemaining > 0)
+		{
+			float secondsRemaining = (float)coolDownTicksRemaining / 20.0F;
+			player.sendMessage(ChatColor.BLUE + "You must wait another " + ChatColor.GOLD + String.format("%.1f", secondsRemaining) + ChatColor.BLUE + " seconds to QuickTravel again!");
+			return;
+		}
 		
 		QuickTravelLocation origin = this.locationManager.getLocationAt(player.getLocation());
 		QuickTravelLocation target = this.locationManager.getLocationByName(args[0]); 
@@ -543,181 +564,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 					return;
 				}
 				
-				/* Check economy */
-				if (economyEnabled == true)
-				{
-					/* Economy is enabled */
-					if (origin.isFree() || target.isFree())
-					{
-						/* One or both of these QTs are free */
-						if (!origin.getWorld().equals(target.getWorld()))
-						{
-							/*
-							 * Charge multiworld tax
-							 */
-							travelCost = this.getOptions().getMultiworldTax();
-							if (!EcoSetup.economy.has(player.getName(), travelCost))
-							{
-								chargePlayer(player, travelCost);
-							}
-							else
-							{
-								/* Player does not have enough money */
-								player.sendMessage("You do not have enough money to go there.");
-								return;
-							}
-						}
-					}
-					else
-					{
-						if (target.shouldChargeFrom(origin))
-						{
-							/* Price has been manually set for QT */
-							travelCost = target.getChargeFrom(origin);
-							if (!target.getWorld().equals(origin.getWorld()))
-							{
-								travelCost += this.getOptions().getMultiworldTax();
-							}
-							
-							if (travelCost > 0)
-							{
-								/* Check player has enough money */
-								if (EcoSetup.economy.has(player.getName(), travelCost))
-								{
-									chargePlayer(player, travelCost);
-								}
-								else
-								{
-									/*
-									 * Player does not have enough money
-									 */
-									player.sendMessage("You do not have enough money to go there.");
-									return;
-								}
-							}
-						}
-						else
-						{
-							/*
-							 * No custom price set, check whether it should be free or if we should set the price
-							 */
-							if ((this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeFromQts()) || (!this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeByDefault()))
-							{
-								/* QT should not be free, calculate price */
-								travelCost = calculatePriceTo(player, origin, target);
-								if (!target.getWorld().equals(origin.getWorld()))
-								{
-									travelCost += this.getOptions().getMultiworldTax();
-								}
-								
-								/* Check player has enough money */
-								if (EcoSetup.economy.has(player.getName(), travelCost))
-								{
-									this.chargePlayer(player, travelCost);
-								}
-								else
-								{
-									/* Player does not have enough money */
-									player.sendMessage("You do not have enough money to go there.");
-									return;
-								}
-							}
-							else
-							{
-								/* QT should be free QT */
-								if (!target.getWorld().equals(origin.getWorld()))
-								{
-									/* Charge multiworld tax */
-									travelCost += this.getOptions().getMultiworldTax();
-									if (EcoSetup.economy.has(player.getName(), travelCost))
-									{
-										this.chargePlayer(player, travelCost);
-									}
-									else
-									{
-										/* Player does not have enough money */
-										player.sendMessage("You do not have enough money to go there.");
-										return;
-									}
-								}
-							}
-						}
-					}
-				}
+				travelCost = this.calculateChargeFromTo(player, origin, target);
 			}
 			else if (this.getOptions().canQtFromAnywhere())
 			{
 				/* Player is not at a QT location, however QTs are enabled from anywhere */
-				if (economyEnabled == true)
-				{
-					if (!this.getOptions().enabledByDefault())
-					{
-						/* Economy is enabled QTs are not free by default
-						 * Check whether destination is free and calculate if not */
-						if (target.isFree())
-						{
-							travelCost = 0.0;
-							
-							if (!target.getWorld().equals(player.getWorld()))
-							{
-								/* Charge multiworld tax */
-								travelCost += this.getOptions().getMultiworldTax();
-								
-								/* Check player has enough money */
-								if (EcoSetup.economy.has(player.getName(), travelCost))
-								{
-									this.chargePlayer(player, travelCost);
-								}
-								else
-								{
-									/* Player does not have enough money */
-									player.sendMessage("You do not have enough money to go there.");
-									return;
-								}
-							}
-						}
-						else
-						{
-							travelCost = calculatePriceTo(player, target);
-							
-							if (!target.getWorld().equals(player.getWorld()))
-							{
-								travelCost += this.getOptions().getMultiworldTax();
-							}
-							
-							/* Check player has enough money */
-							if (EcoSetup.economy.has(player.getName(), travelCost))
-							{
-								this.chargePlayer(player, travelCost);
-							}
-							else
-							{
-								/* Player does not have enough money */
-								player.sendMessage("You do not have enough money to go there.");
-								return;
-							}
-						}
-					}
-					else
-					{
-						if (!target.getWorld().equals(player.getWorld()))
-						{
-							travelCost += this.getOptions().getMultiworldTax();
-						}
-						
-						/* Check player has enough money */
-						if (EcoSetup.economy.has(player.getName(), travelCost))
-						{
-							this.chargePlayer(player, travelCost);
-						}
-						else
-						{
-							/* Player does not have enough money */
-							player.sendMessage("You do not have enough money to go there.");
-							return;
-						}
-					}
-				}
+				travelCost = this.calculateChargeFromAnywhere(player, target);
 			}
 			else
 			{
@@ -726,9 +578,11 @@ public class QuickTravel extends JavaPlugin implements Listener
 				return;
 			}
 			
-			/* Economy disabled, send QT */
-			this.quickTravel(player, origin, target, travelCost);
-			return;
+			/* Check player has required funds and then send QT */
+			if (checkPlayerHasFunds(player, travelCost))
+			{
+				this.beginQuickTravel(player, origin, target, travelCost);
+			}
 		}
 		else
 		{
@@ -742,30 +596,108 @@ public class QuickTravel extends JavaPlugin implements Listener
 
 	/**
 	 * @param player
-	 * @param fee
+	 * @param target
+	 * @param travelCost
+	 * @return
 	 */
-	protected void chargePlayer(Player player, double fee)
+	protected double calculateChargeFromAnywhere(Player player, QuickTravelLocation target)
 	{
-		/* Withdraw money from player */
-		if (EcoSetup.economy.hasBankSupport() && !this.getOptions().withdrawFromPlayerNotBank())
+		if (!economyEnabled || player.hasPermission("qt.free")) return 0.0;
+		
+		double travelCost = 0.0;
+		
+		if (!this.getOptions().isFreeByDefault())
 		{
-			EcoSetup.economy.bankWithdraw(player.getName(), fee);
+			/* Economy is enabled QTs are not free by default
+			 * Check whether destination is free and calculate if not */
+			if (this.getOptions().useGlobalPrice() && this.getOptions().getGlobalPrice() > 0)
+			{
+				travelCost = this.getOptions().getGlobalPrice();
+			}
+			else if (!target.isFree())
+			{
+				travelCost = calculatePriceTo(player, target);
+			}
 		}
-		else
+		
+		if (!target.getWorld().equals(player.getWorld()))
 		{
-			EcoSetup.economy.withdrawPlayer(player.getName(), fee);
+			/* Charge multiworld tax */
+			travelCost += this.getOptions().getMultiworldTax();
 		}
+		
+		return travelCost;
+	}
+
+	/**
+	 * @param player
+	 * @param origin
+	 * @param target
+	 * @param travelCost
+	 * @return
+	 */
+	protected double calculateChargeFromTo(Player player, QuickTravelLocation origin, QuickTravelLocation target)
+	{
+		if (!economyEnabled || player.hasPermission("qt.free")) return 0.0;
+		
+		double travelCost = 0.0;
+		
+		/* Economy is enabled and one or other QT is not free */
+		if (!(origin.isFree() || target.isFree()))
+		{
+			if (target.shouldChargeFrom(origin))
+			{
+				/* Price has been manually set for QT */
+				travelCost = target.getChargeFrom(origin);
+			}
+			else if (this.getOptions().useGlobalPrice() && this.getOptions().getGlobalPrice() > 0)
+			{
+				travelCost = this.getOptions().getGlobalPrice();
+			}
+			/* No custom price set, check whether it should be free or if we should set the price */
+			else if ((this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeFromQts()) || (!this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeByDefault()))
+			{
+				/* QT should not be free, calculate price */
+				travelCost = calculatePriceTo(player, origin, target);
+			}
+		}
+		
+		/* One or both of these QTs are free */
+		if (!origin.getWorld().equals(target.getWorld()))
+		{
+			/* Charge multiworld tax */
+			travelCost = this.getOptions().getMultiworldTax();
+		}
+		
+		return travelCost;
+	}
+
+	/**
+	 * @param player
+	 * @param travelCost
+	 */
+	private boolean checkPlayerHasFunds(Player player, double travelCost)
+	{
+		/* Check player has enough money */
+		if (!EcoSetup.economy.has(player.getName(), travelCost))
+		{
+			/* Player does not have enough money */
+			player.sendMessage("You do not have enough money to go there.");
+			return false;
+		}
+		
+		return true;
 	}
 	
-	public void quickTravel(Player player, QuickTravelLocation fromQT, QuickTravelLocation requestedQT, double cost)
+	public void beginQuickTravel(Player player, QuickTravelLocation fromQT, QuickTravelLocation requestedQT, double cost)
 	{
 		if (player != null && requestedQT != null)
 		{
 			String costMessage = cost > 0 ? ChatColor.BLUE + " for " + ChatColor.GOLD + EcoSetup.economy.format(cost) : "";
-			player.sendMessage(ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + requestedQT.getName() + costMessage + ChatColor.BLUE + "...");
-			
-			QuickTravelFX departureFX = fromQT != null ? fromQT.getDepartureEffect() : this.wildernessDepartureFX;
-			requestedQT.teleport(player, departureFX, this.getOptions().enableSafetyChecks());
+			String message = ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + requestedQT.getName() + costMessage + ChatColor.BLUE + "...";
+
+			QuickTravelPassport passport = new QuickTravelPassport(player, cost, message, fromQT, requestedQT, this.wildernessDepartureFX, this.getOptions(), this.locationManager);
+			this.locationManager.beginQuickTravel(passport);
 		}
 	}
 	
@@ -2191,125 +2123,36 @@ public class QuickTravel extends JavaPlugin implements Listener
 			{
 				boolean inWorld = destination.isInWorld(player.getWorld());
 				String worldString = inWorld ? "" : "[" + destination.getWorld().getName() + "] ";
-				double travelCost = 0;
+
+				double travelCost = 0.0;
 				
 				if (qt != null)
 				{
-					/* If player is at a QT, get price from this location, if any */
+					/* Player is at a QT location */
+					if (qt == destination)
+					{
+						/* Player is already at the requested QT, do not send */
+						player.sendMessage(ChatColor.BLUE + "You are already at " + ChatColor.AQUA + destination.getName() + ChatColor.BLUE + "!");
+						return;
+					}
 					
-					/* Is server running a valid economy? */
-					if (economyEnabled == true)
-					{
-						if (destination.isFree() || qt.isFree())
-						{
-							/* One or both of these QTs are free, no price */
-							if (!inWorld)
-							{
-								travelCost += this.getOptions().getMultiworldTax();
-								player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-							}
-							else
-							{
-								player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
-							}
-						}
-						else
-						{
-							if (destination.shouldChargeFrom(qt))
-							{
-								travelCost = destination.getChargeFrom(qt);
-								
-								if (!inWorld)
-								{
-									travelCost += this.getOptions().getMultiworldTax();
-								}
-								
-								/* If price has been manually set */
-								if (travelCost > 0)
-								{
-									player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-								}
-								else
-								{
-									player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE);
-								}
-							}
-							else if ((this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeFromQts()) || (!this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeByDefault()))
-							{
-								/* If no price set, but server still requires payment for this QT */
-								travelCost = calculatePriceTo(player, qt, destination);
-								
-								if (!inWorld)
-								{
-									travelCost += this.getOptions().getMultiworldTax();
-								}
-								
-								player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-							}
-							else
-							{
-								/* No price for this QT */
-								if (!inWorld)
-								{
-									travelCost = travelCost + this.getOptions().getMultiworldTax();
-									player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-								}
-								else
-								{
-									player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
-								}
-							}
-						}
-					}
-					else
-					{
-						/* No valid economy found, no price */
-						player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
-					}
+					travelCost = this.calculateChargeFromTo(player, qt, destination);
 				}
-				else if (!this.getOptions().isFreeByDefault())
+				else if (this.getOptions().canQtFromAnywhere())
 				{
-					if (economyEnabled == true)
-					{
-						/* Player is not at a QT */
-						if (destination.isFree())
-						{
-							/* QT is set to free, no price */
-							if (!inWorld)
-							{
-								travelCost += this.getOptions().getMultiworldTax();
-								player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-							}
-							else
-							{
-								player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
-							}
-						}
-						else
-						{
-							/* Calculate price */
-							travelCost = calculatePriceTo(player, destination);
-							
-							if (!inWorld)
-							{
-								travelCost += this.getOptions().getMultiworldTax();
-							}
-							
-							player.sendMessage(worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE + " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost));
-						}
-					}
-					else
-					{
-						/* Economy disabled */
-						player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
-					}
+					/* Player is not at a QT location, however QTs are enabled from anywhere */
+					travelCost = this.calculateChargeFromAnywhere(player, destination);
 				}
-				else
+				
+				String message = worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE;
+				if (travelCost > 0)
 				{
-					/* No price required or economy disabled */
-					player.sendMessage(worldString + ChatColor.AQUA + destination.getName());
+					message += " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost);
 				}
+
+				player.sendMessage(message);
 			}
+
 		}
 		
 		String pageString = "Page " + ChatColor.GOLD + page + ChatColor.WHITE + " of " + ChatColor.GOLD + pages;
@@ -2361,7 +2204,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return true;
 	}
 	
-	public boolean checkPlayerCanTravelFromTo(Player player, QuickTravelLocation origin, QuickTravelLocation target, String targetName, boolean showMessage)
+	private boolean checkPlayerCanTravelFromTo(Player player, QuickTravelLocation origin, QuickTravelLocation target, String targetName, boolean showMessage)
 	{
 		if (target == null)
 		{
@@ -2434,7 +2277,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return true;
 	}
 	
-	public int calculatePriceTo(Player player, QuickTravelLocation origin, QuickTravelLocation target)
+	private int calculatePriceTo(Player player, QuickTravelLocation origin, QuickTravelLocation target)
 	{
 		if (target != null)
 		{
@@ -2444,15 +2287,9 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return 0;
 	}
 	
-	public int calculatePriceTo(Player player, QuickTravelLocation target)
+	private int calculatePriceTo(Player player, QuickTravelLocation target)
 	{
 		return this.calculatePriceTo(player, null, target);
-	}
-	
-	public boolean playerHasPermission(Player player, String qtName)
-	{
-		QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
-		return (qt == null) ? false : qt.checkPermission(player);
 	}
 	
 	private static boolean containsLetter(String s)

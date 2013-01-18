@@ -24,6 +24,10 @@ public class QuickTravelOptions
 	private float multiworldTax = 500.0F;
 	private boolean freeFromQts = false;
 	private boolean enableSafetyChecks = false;
+	private int warmUpTicks = 20;
+	private int coolDownTicks = 100;
+	private boolean useGlobalPrice = false;
+	private double globalPrice = 0.0;
 
 	/**
 	 * Load settings from the plugin config
@@ -45,6 +49,10 @@ public class QuickTravelOptions
 		config.addDefault("price-multiplier", 500);
 		config.addDefault("free-from-qts", false);
 		config.addDefault("enable-safety-checks", false);
+		config.addDefault("warmup-ticks", 20);
+		config.addDefault("cooldown-ticks", 100);
+		config.addDefault("use-global-price", false);
+		config.addDefault("global-price", 0.0);
 		
 		config.options().copyDefaults(true);
 		
@@ -80,6 +88,10 @@ public class QuickTravelOptions
 		this.multiworldTax               = (float)config.getDouble("multiworld-tax", 500.0);
 		this.freeFromQts                 = config.getBoolean("free-from-qts", false);
 		this.enableSafetyChecks          = config.getBoolean("enable-safety-checks", false);
+		this.warmUpTicks                 = config.getInt("warmup-ticks", 20);
+		this.coolDownTicks               = config.getInt("cooldown-ticks", 100);
+		this.useGlobalPrice              = config.getBoolean("use-global-price", false);
+		this.globalPrice                 = config.getDouble("global-price", 0.0);
 	}
 
 	/**
@@ -200,5 +212,69 @@ public class QuickTravelOptions
 	public boolean enableSafetyChecks()
 	{
 		return enableSafetyChecks;
+	}
+
+	/**
+	 * @return the warmUpTicks
+	 */
+	public int getWarmUpTicks()
+	{
+		return warmUpTicks;
+	}
+
+	/**
+	 * @param warmUpTicks the warmUpTicks to set
+	 */
+	public void setWarmUpTicks(int warmUpTicks)
+	{
+		this.warmUpTicks = warmUpTicks;
+	}
+
+	/**
+	 * @return the coolDownTicks
+	 */
+	public int getCoolDownTicks()
+	{
+		return coolDownTicks;
+	}
+
+	/**
+	 * @param coolDownTicks the coolDownTicks to set
+	 */
+	public void setCoolDownTicks(int coolDownTicks)
+	{
+		this.coolDownTicks = coolDownTicks;
+	}
+
+	/**
+	 * @return the useGlobalPrice
+	 */
+	public boolean useGlobalPrice()
+	{
+		return useGlobalPrice;
+	}
+
+	/**
+	 * @param useGlobalPrice the useGlobalPrice to set
+	 */
+	public void setUseGlobalPrice(boolean useGlobalPrice)
+	{
+		this.useGlobalPrice = useGlobalPrice;
+	}
+
+	/**
+	 * @return the globalPrice
+	 */
+	public double getGlobalPrice()
+	{
+		return globalPrice;
+	}
+
+	/**
+	 * @param globalPrice the globalPrice to set
+	 */
+	public void setGlobalPrice(double globalPrice)
+	{
+		this.globalPrice = globalPrice;
 	}
 }

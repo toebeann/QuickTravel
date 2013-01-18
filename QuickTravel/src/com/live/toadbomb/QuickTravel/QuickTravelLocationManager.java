@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -17,6 +19,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemorySection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 
 import com.live.toadbomb.QuickTravel.QuickTravelLocation.Type;
 
@@ -27,7 +30,7 @@ import com.live.toadbomb.QuickTravel.QuickTravelLocation.Type;
  *
  * @author Mumfrey
  */
-public class QuickTravelLocationManager implements QuickTravelLocationProvider
+public class QuickTravelLocationManager implements QuickTravelLocationProvider, QuickTravelCallback, Runnable
 {
 	/**
 	 * Reference to the parent plugin
@@ -43,6 +46,26 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider
 	 * ALl the locations that we know about!
 	 */
 	private Map<String, QuickTravelLocation> locations = new Hashtable<String, QuickTravelLocation>();
+	
+	/**
+	 * List of players warming up
+	 */
+	private Map<Player, QuickTravelPassport> warmUpEntries = new Hashtable<Player, QuickTravelPassport>();
+
+	/**
+	 * List of players cooling down
+	 */
+	private Map<Player, Integer> coolDownPlayers = new HashMap<Player, Integer>();
+	
+	/**
+	 * Number of ticks to warm up for
+	 */
+	private int warmUpTicks = 20;
+
+	/**
+	 * Number of ticks to cool down for
+	 */
+	private int coolDownTicks = 100;
 
 	/**
 	 * @param parentPlugin
@@ -51,6 +74,9 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider
 	{
 		this.plugin = parentPlugin;
 		this.locationsFile = new File(this.plugin.getDataFolder(), "locations.yml");
+		
+		this.warmUpTicks = Math.min(Math.max(this.plugin.getOptions().getWarmUpTicks(), 0), 1200);
+		this.coolDownTicks = Math.max(this.plugin.getOptions().getCoolDownTicks(), 0);
 	}
 	
 	/* (non-Javadoc)
@@ -99,6 +125,86 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider
 		return this.locations.size();
 	}
 
+	/**
+	 * Schedule a quicktravel
+	 * 
+	 * @param passport Quicktravel details
+	 * @return
+	 */
+	public void beginQuickTravel(QuickTravelPassport passport)
+	{
+		if (passport == null) return;
+	
+		if (this.warmUpTicks < 1 || passport.getPlayer().hasPermission("qt.instant"))
+		{
+			passport.preTeleport();
+			passport.doTeleport();
+			return;
+		}
+		else 
+		{
+			passport.setWarmUpTicks(this.warmUpTicks);
+			this.warmUpEntries.put(passport.getPlayer(), passport);
+		}
+	}
+
+	/* (non-Javadoc)
+	 * @see java.lang.Runnable#run()
+	 */
+	@Override
+	public void run()
+	{
+		int heightModifier = this.plugin.getOptions().getHeightModifier();
+		
+		// Process active passports
+		Iterator<Entry<Player, QuickTravelPassport>> passports = this.warmUpEntries.entrySet().iterator();
+		while (passports.hasNext())
+		{
+			Entry<Player, QuickTravelPassport> passportEntry = passports.next();
+			
+			if (passportEntry.getValue().onTick(heightModifier))
+				passports.remove();
+		}
+
+		// Tick active cooldowns
+		Iterator<Entry<Player, Integer>> coolDowns = this.coolDownPlayers.entrySet().iterator();
+		while (coolDowns.hasNext())
+		{
+			Entry<Player, Integer> coolDownEntry = coolDowns.next();
+			int ticks = coolDownEntry.getValue() - 1;
+			if (ticks < 0) coolDowns.remove();
+			coolDownEntry.setValue(ticks);
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see com.live.toadbomb.QuickTravel.QuickTravelCallback#notifyPlayerTeleported(org.bukkit.entity.Player, double)
+	 */
+	@Override
+	public void notifyPlayerTeleported(Player player, double cost)
+	{
+		if (this.coolDownTicks > 0 && !player.hasPermission("qt.instant"))
+		{
+			this.coolDownPlayers.put(player, this.coolDownTicks);
+		}
+	}
+	
+	/**
+	 * Get the number of cooldown ticks remaining for this player
+	 * 
+	 * @param player
+	 * @return
+	 */
+	public int getPlayerTeleportCooldown(Player player)
+	{
+		if (this.coolDownPlayers.containsKey(player))
+		{
+			return this.coolDownPlayers.get(player);
+		}
+		
+		return 0;
+	}
+	
 	/**
 	 * Create a quicktravel point, throws and exception if the QT already exists
 	 * 

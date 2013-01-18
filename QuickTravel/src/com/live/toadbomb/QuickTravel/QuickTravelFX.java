@@ -4,10 +4,10 @@ import org.bukkit.Effect;
 import org.bukkit.Location;
 
 /**
- * Base class for teleport effects, so that it's easy to add more effects later on 
+ * Abstract base class for teleport effects 
  * 
  */
-public class QuickTravelFX
+public abstract class QuickTravelFX
 {
 	/**
 	 * Effect visibility radius
@@ -24,9 +24,19 @@ public class QuickTravelFX
 	
 	/**
 	 * @param location
+	 * @param ticksRemaining TODO
+	 */
+	public void playPreTeleportEffect(Location location, int ticksRemaining)
+	{
+		// stub for subclasses
+	}
+	
+	/**
+	 * @param location
+	 * @param ticksRemaining TODO
 	 * @param radius
 	 */
-	public void playTeleportEffect(Location location)
+	public void playTeleportEffect(Location location, int ticksRemaining)
 	{
 		location.getWorld().playEffect(location, Effect.ENDER_SIGNAL, null, radius);
 		location.getWorld().playEffect(location.clone().add( 1, 0,  0), Effect.SMOKE, 4, radius);
@@ -37,7 +47,6 @@ public class QuickTravelFX
 		location.getWorld().playEffect(location.clone().add(-1, 0, -1), Effect.SMOKE, 4, radius);
 		location.getWorld().playEffect(location.clone().add( 0, 0, -1), Effect.SMOKE, 4, radius);
 		location.getWorld().playEffect(location.clone().add( 1, 0, -1), Effect.SMOKE, 4, radius);
-		location.getWorld().playEffect(location, Effect.GHAST_SHOOT, null, radius);
 		location.getWorld().playEffect(location, Effect.EXTINGUISH, null, radius);
 	}
 }
