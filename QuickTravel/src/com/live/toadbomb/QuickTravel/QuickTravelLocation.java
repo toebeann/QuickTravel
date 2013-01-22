@@ -104,6 +104,11 @@ public class QuickTravelLocation
 	 * Currently configured arrival effect
 	 */
 	private QuickTravelFX arriveFX = new QuickTravelFXArrival(32);
+
+	/**
+	 * Message to display when entering the region
+	 */
+	private String welcomeMessage = "";
 	
 	/**
 	 * @param name Name for this quicktravel location
@@ -155,6 +160,7 @@ public class QuickTravelLocation
 		World world = Bukkit.getWorld(config.getString("world")); 
 
 		this.name               = config.getString("name", this.getName()).toLowerCase();
+		this.welcomeMessage     = config.getString("welcome-message", "");
 		this.type               = config.getString("type", "radius").toLowerCase().equals("cuboid") ? Type.Cuboid : Type.Radius;
 		this.enabled            = config.getBoolean("enabled", enabledByDefault);
 		this.requireDiscovery   = config.getBoolean("require-discovery", requireDiscoveryByDefault);
@@ -200,6 +206,7 @@ public class QuickTravelLocation
 	public void saveToConfigSection(ConfigurationSection config)
 	{
 		config.set("name",                this.name);
+		config.set("welcome-message",     this.welcomeMessage);
 		config.set("type",                this.type.name());
 		config.set("radius",              this.radius);
 		config.set("require-discovery",   this.requireDiscovery);
@@ -351,6 +358,26 @@ public class QuickTravelLocation
 	public void setName(String name)
 	{
 		this.name = name.toLowerCase();
+	}
+
+	/**
+	 * Return the message to display when entering this location's region
+	 * 
+	 * @return welcome message
+	 */
+	public String getWelcomeMessage()
+	{
+		return this.welcomeMessage.length() > 0 ? this.welcomeMessage.replaceAll("(?<!\046)\046([0-9a-fklmnor])", "\247$1").replaceAll("\046\046", "\046") : ChatColor.BLUE + "You have arrived at " + ChatColor.AQUA + this.getName() + ChatColor.BLUE + ".";
+	}
+	
+	/**
+	 * Set the welcome message for this qt
+	 * 
+	 * @param welcomeMessage
+	 */
+	public void setWelcomeMessage(String welcomeMessage)
+	{
+		this.welcomeMessage = welcomeMessage != null ? welcomeMessage : "";
 	}
 
 	/**
@@ -746,6 +773,15 @@ public class QuickTravelLocation
 	}
 	
 	/**
+	 * Notifies this QT that it has been deleted, so that it can release any relevant resources
+	 */
+	public void notifyDeleted()
+	{
+		this.chargeFrom.clear();
+		this.enabled = false;
+	}
+	
+	/**
 	 * Called when another QT is deleted, allows this location to remove the deleted QT from its local stors
 	 * 
 	 * @param other
@@ -771,9 +807,9 @@ public class QuickTravelLocation
 		info.append(ChatColor.AQUA).append(this.name).append(ChatColor.WHITE).append(" | ");
 		
 		if (this.isEnabled())
-			info.append(ChatColor.GREEN).append("Enabled ");
+			info.append(ChatColor.GREEN).append("Enabled");
 		else
-			info.append(ChatColor.RED).append("Disabled ");
+			info.append(ChatColor.RED).append("Disabled");
 
 		if (sender instanceof Player)
 		{

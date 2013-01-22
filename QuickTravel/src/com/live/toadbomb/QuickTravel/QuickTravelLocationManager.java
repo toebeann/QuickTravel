@@ -75,6 +75,15 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		this.plugin = parentPlugin;
 		this.locationsFile = new File(this.plugin.getDataFolder(), "locations.yml");
 		
+		// Apply options from the plugin options
+		this.updateOptions();
+	}
+
+	/**
+	 * Updates local configuration options from the options store 
+	 */
+	public void updateOptions()
+	{
 		this.warmUpTicks = Math.min(Math.max(this.plugin.getOptions().getWarmUpTicks(), 0), 1200);
 		this.coolDownTicks = Math.max(this.plugin.getOptions().getCoolDownTicks(), 0);
 	}
@@ -253,11 +262,49 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 			throw new IllegalStateException("Corrupted location table detected! QT with name \"" + qtToDelete.getName() + "\" was stored with a different key. Maybe somebody called setName() directly!");
 		}
 		
+		// Notify the location that it was deleted
+		oldLocation.notifyDeleted();
+		
 		// notify all remaining QT's that this QT was deleted, so that they can un-map the QT in their charge maps
 		for (QuickTravelLocation qt : this.locations.values())
 			qt.notifyQuickTravelDeleted(oldLocation);
 	}
 
+	/**
+	 * Sets a boolean property on all QT's in a world
+	 * 
+	 * @param sender player requesting the property change
+	 * @param world world to set properties in
+	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms" and "multiworld"
+	 * @param toggle toggle the propery values
+	 * @param newValue value to set if toggle is false
+	 */
+	public void setQTProperty(CommandSender sender, World world, String propertyName, boolean toggle, boolean newValue)
+	{
+		     if (propertyName.equals("free"))       this.setQTFree               (sender, world, toggle, newValue);
+		else if (propertyName.equals("discovery"))  this.setQTRequiresDiscovery  (sender, world, toggle, newValue);
+		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, world, toggle, newValue);
+		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, world, toggle, newValue);
+	}
+	
+	/**
+	 * Sets a boolean property on a specified QT
+	 * 
+	 * @param sender player requesting the property change
+	 * @param qt QT to set the property on
+	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms" and "multiworld"
+	 * @param toggle toggle the propery values
+	 * @param newValue value to set if toggle is false
+	 * @param world world to set properties in
+	 */
+	public void setQTProperty(CommandSender sender, QuickTravelLocation qt, String propertyName, boolean toggle, boolean newValue)
+	{
+	         if (propertyName.equals("free"))       this.setQTFree               (sender, qt, toggle, newValue);
+		else if (propertyName.equals("discovery"))  this.setQTRequiresDiscovery  (sender, qt, toggle, newValue);
+		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, qt, toggle, newValue);
+		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, qt, toggle, newValue);
+	}
+	
 	/**
 	 * Sets the type of all QT's in the specified world
 	 * 
@@ -506,7 +553,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 					// If something went wrong loading the entry, the pointer will be null
 					if (newLocation != null)
 					{
-						locations.put(newLocation.getName(), newLocation);
+						this.locations.put(newLocation.getName(), newLocation);
 					}
 				}
 			}
@@ -526,6 +573,8 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 				}
 			}
 		}
+
+		this.plugin.onLocationsUpdated();
 	}
 
 	/**
@@ -546,6 +595,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		try
 		{
 			locationsConfig.save(this.locationsFile);
+			this.plugin.onLocationsUpdated();
 		}
 		catch (IOException ex)
 		{

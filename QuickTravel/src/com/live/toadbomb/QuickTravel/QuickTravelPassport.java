@@ -131,7 +131,7 @@ public class QuickTravelPassport
 		}
 		
 		// Play warm-up effects every few ticks
-		if (this.warmUpTicks % this.warmUpFXInterval == 0 && this.warmUpFX != null)
+		if (this.options.enableEffects() && this.warmUpTicks % this.warmUpFXInterval == 0 && this.warmUpFX != null)
 		{
 			this.warmUpFX.playTeleportEffect(this.player.getLocation(), this.warmUpTicks);
 		}
@@ -150,7 +150,7 @@ public class QuickTravelPassport
 	 */
 	public void preTeleport()
 	{
-		if (this.departureEffect != null) this.departureEffect.playPreTeleportEffect(this.player.getLocation(), 0);
+		if (this.options.enableEffects() && this.departureEffect != null) this.departureEffect.playPreTeleportEffect(this.player.getLocation(), 0);
 	}
 	
 	/**
@@ -160,14 +160,17 @@ public class QuickTravelPassport
 	 */
 	public void doTeleport()
 	{
-		if (EcoSetup.economy.has(this.player.getName(), this.cost))
+		if (this.cost > 0 && this.options.enableEconomy() && EcoSetup.economy != null)
 		{
-			this.chargePlayer();
-		}
-		else
-		{
-			player.sendMessage("You do not have enough money to go there.");
-			return;
+			if (EcoSetup.economy.has(this.player.getName(), this.cost))
+			{
+				this.chargePlayer();
+			}
+			else
+			{
+				player.sendMessage("You do not have enough money to go there.");
+				return;
+			}
 		}
 
 		Location originLocation = this.player.getLocation();
@@ -178,8 +181,11 @@ public class QuickTravelPassport
 			Location destination = this.options.enableSafetyChecks() ? this.checkSafe(targetLocation, this.player) : targetLocation;
 			this.player.teleport(destination);
 			
-			if (this.departureEffect != null) this.departureEffect.playTeleportEffect(originLocation, 0);
-			if (this.arrivalEffect != null) this.arrivalEffect.playTeleportEffect(destination, 0);
+			if (this.options.enableEffects())
+			{
+				if (this.departureEffect != null) this.departureEffect.playTeleportEffect(originLocation, 0);
+				if (this.arrivalEffect != null) this.arrivalEffect.playTeleportEffect(destination, 0);
+			}
 			
 			if (this.notifyCallback != null)
 			{

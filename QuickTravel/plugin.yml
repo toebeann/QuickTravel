@@ -23,12 +23,16 @@ permissions:
       qt.admin.dest: true
       qt.admin.enable: true
       qt.admin.disable: true
+      qt.admin.delete: true
       qt.admin.price: true
       qt.admin.free: true
       qt.admin.discovery: true
       qt.admin.perms: true
       qt.admin.multiworld: true
       qt.admin.list: true
+      qt.admin.welcome: true
+      qt.admin.cfg: true
+      qt.admin.reload: true
   qt.admin.create:
     description: Gives access to /qt create
     default: false
@@ -56,6 +60,9 @@ permissions:
   qt.admin.disable:
     description: Gives access to /qt disable
     default: false
+  qt.admin.delete:
+    description: Gives access to /qt delete
+    default: false
   qt.admin.price:
     description: Gives access to /qt price
     default: false
@@ -74,10 +81,25 @@ permissions:
   qt.admin.list:
     description: Gives access to /qt list
     default: false
+  qt.admin.welcome:
+    description: Gives access to /qt welcome
+    default: false
+  qt.admin.cfg:
+    description: Gives access to /qt cfg
+    default: false
+  qt.admin.reload:
+    description: Gives access to /qt reload
+    default: false
   qt.use.*:
     description: Gives player permission to use/discover all QTs
     default: false
   qt.user:
     description: Enables use of the QuickTravel plugin.
     default: op
-softdepend: [Vault]
+  qt.free:
+    description: Enables user to travel for free to all QTs
+    default: false
+  qt.fromanywhere:
+    description: Enables user to QT from anywhere, even when the qt-from-anywhere option is not enabled
+    default: op
+softdepend: [Vault,WorldEdit,Dynmap]

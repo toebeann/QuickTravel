@@ -9,6 +9,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -76,6 +77,8 @@ public class QuickTravel extends JavaPlugin implements Listener
 	private QuickTravelFX wildernessDepartureFX = new QuickTravelFXDeparture(32);
 	
 	private BukkitTask warmUpCoolDownTask;
+	
+	private QuickTravelDynmapLink dynmapLink;
 
 	/**
 	 * Get the configured options
@@ -139,16 +142,32 @@ public class QuickTravel extends JavaPlugin implements Listener
 		
 		// Task to call every tick, which will handle the warm up and cool down for us
 		this.warmUpCoolDownTask = this.getServer().getScheduler().runTaskTimer(this, this.locationManager, 1, 1);
+		
+		try
+		{
+			this.dynmapLink = new QuickTravelDynmapLink();
+			this.dynmapLink.init(this);
+			this.dynmapLink.update(this.locationManager);
+		}
+		catch (Throwable th) {}
 	}
 	
 	@Override
 	public void onDisable()
 	{
+		if (this.dynmapLink != null)
+		{
+			this.dynmapLink.disable();
+		}
+		
+		this.dynmapLink = null;
+		
 		if (this.warmUpCoolDownTask != null)
 		{
 			this.warmUpCoolDownTask.cancel();
 		}
 		
+		this.locationManager.save();
 		this.locationManager = null;
 		this.options = null;
 		
@@ -181,7 +200,8 @@ public class QuickTravel extends JavaPlugin implements Listener
 			{
 				if (!qt.equals(playerAt.get(playerName)))
 				{
-					player.sendMessage(ChatColor.BLUE + "You have arrived at " + ChatColor.AQUA + qt + ChatColor.BLUE + ". Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
+					player.sendMessage(qt.getWelcomeMessage());
+					player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 				}
 						
 				playerAt.put(playerName, qt);
@@ -198,6 +218,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 	{
 		if (event.getPlayer() != null)
 			this.playerAt.remove(event.getPlayer().getName());
+	}
+	
+	public void onLocationsUpdated()
+	{
+		if (this.dynmapLink != null)
+		{
+			this.dynmapLink.update(this.locationManager);
+		}
 	}
 	
 	@Override
@@ -239,6 +267,22 @@ public class QuickTravel extends JavaPlugin implements Listener
 				if (sender.hasPermission("qt.admin.rename"))
 				{
 					this.renameQuickTravel(sender, args);
+					return true;
+				}
+				else
+				{
+					/* Not authorised */
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
+					this.listQuickTravels(sender, 1, false);
+					return true;
+				}
+			}
+			else if (args[0].equalsIgnoreCase("welcome") || args[0].equalsIgnoreCase("greeting"))
+			{
+				/* "/qt rename" passed */
+				if (sender.hasPermission("qt.admin.welcome"))
+				{
+					this.setQuickTravelWelcome(sender, args);
 					return true;
 				}
 				else
@@ -304,7 +348,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			else if (args[0].equalsIgnoreCase("move"))
 			{
-				/* "/qt update" passed Make sure is not being run from console */
+				/* "/qt move" passed Make sure is not being run from console */
 				if (!(sender instanceof Player))
 				{
 					sender.sendMessage(ChatColor.RED + "You must be a player!");
@@ -376,6 +420,22 @@ public class QuickTravel extends JavaPlugin implements Listener
 					return true;
 				}
 			}
+			else if (args[0].equalsIgnoreCase("delete"))
+			{
+				/* "/qt delete" passed */
+				if (sender.hasPermission("qt.admin.delete"))
+				{
+					this.deleteQuickTravel(sender, args);
+					return true;
+				}
+				else
+				{
+					/* Not authorised */
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
+					this.listQuickTravels(sender, 1, false);
+					return true;
+				}
+			}
 			else if (args[0].equalsIgnoreCase("price") || args[0].equalsIgnoreCase("charge"))
 			{
 				/* "/qt price" passed */
@@ -410,7 +470,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			else if (args[0].equalsIgnoreCase("discovery") || args[0].equalsIgnoreCase("discover") || args[0].equalsIgnoreCase("disc") || args[0].equalsIgnoreCase("d"))
 			{
-				/* "/qt price" passed */
+				/* "/qt discovery" passed */
 				if (sender.hasPermission("qt.admin.discovery"))
 				{
 					this.setQuickTravelDiscovery(sender, args);
@@ -426,7 +486,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			else if (args[0].equalsIgnoreCase("perms") || args[0].equalsIgnoreCase("perm") || args[0].equalsIgnoreCase("p"))
 			{
-				/* "/qt price" passed */
+				/* "/qt perms" passed */
 				if (sender.hasPermission("qt.admin.perms"))
 				{
 					this.setQuickTravelPermission(sender, args);
@@ -442,10 +502,48 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			else if (args[0].equalsIgnoreCase("multiworld") || args[0].equalsIgnoreCase("multi") || args[0].equalsIgnoreCase("m"))
 			{
-				/* "/qt price" passed */
+				/* "/qt multiworld" passed */
 				if (sender.hasPermission("qt.admin.multiworld"))
 				{
 					this.setQuickTravelMultiworld(sender, args);
+					return true;
+				}
+				else
+				{
+					/* Not authorised */
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
+					this.listQuickTravels(sender, 1, false);
+					return true;
+				}
+			}
+			else if (args[0].equalsIgnoreCase("cfg") || args[0].equalsIgnoreCase("config"))
+			{
+				/* "/qt multiworld" passed */
+				if (sender.hasPermission("qt.admin.cfg"))
+				{
+					this.setQuickTravelOption(sender, args);
+					return true;
+				}
+				else
+				{
+					/* Not authorised */
+					sender.sendMessage("[" + ChatColor.RED + "Error" + ChatColor.WHITE + "] We do not know " + ChatColor.AQUA + args[0] + ChatColor.WHITE + "!");
+					this.listQuickTravels(sender, 1, false);
+					return true;
+				}
+			}
+			else if (args[0].equalsIgnoreCase("reload"))
+			{
+				/* "/qt multiworld" passed */
+				if (sender.hasPermission("qt.admin.reload"))
+				{
+					info("Reloading plugin");
+					sender.sendMessage("Reloading QuickTravel...");
+					
+					this.onDisable();
+					this.onEnable();
+					
+					sender.sendMessage("Reload complete");
 					return true;
 				}
 				else
@@ -566,7 +664,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 				
 				travelCost = this.calculateChargeFromTo(player, origin, target);
 			}
-			else if (this.getOptions().canQtFromAnywhere())
+			else if (this.getOptions().canQtFromAnywhere(player))
 			{
 				/* Player is not at a QT location, however QTs are enabled from anywhere */
 				travelCost = this.calculateChargeFromAnywhere(player, target);
@@ -616,7 +714,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			else if (!target.isFree())
 			{
-				travelCost = calculatePriceTo(player, target);
+				travelCost = calculateCharge(player, null, target);
 			}
 		}
 		
@@ -655,10 +753,10 @@ public class QuickTravel extends JavaPlugin implements Listener
 				travelCost = this.getOptions().getGlobalPrice();
 			}
 			/* No custom price set, check whether it should be free or if we should set the price */
-			else if ((this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeFromQts()) || (!this.getOptions().canQtFromAnywhere() && !this.getOptions().isFreeByDefault()))
+			else if ((this.getOptions().canQtFromAnywhere(player) && !this.getOptions().isFreeFromQts()) || (!this.getOptions().canQtFromAnywhere(player) && !this.getOptions().isFreeByDefault()))
 			{
 				/* QT should not be free, calculate price */
-				travelCost = calculatePriceTo(player, origin, target);
+				travelCost = calculateCharge(player, origin, target);
 			}
 		}
 		
@@ -678,12 +776,19 @@ public class QuickTravel extends JavaPlugin implements Listener
 	 */
 	private boolean checkPlayerHasFunds(Player player, double travelCost)
 	{
-		/* Check player has enough money */
-		if (!EcoSetup.economy.has(player.getName(), travelCost))
+		try
 		{
-			/* Player does not have enough money */
-			player.sendMessage("You do not have enough money to go there.");
-			return false;
+			/* Check player has enough money */
+			if (travelCost > 0 && this.getOptions().enableEconomy() && EcoSetup.economy != null && !EcoSetup.economy.has(player.getName(), travelCost))
+			{
+				/* Player does not have enough money */
+				player.sendMessage("You do not have enough money to go there.");
+				return false;
+			}
+		}
+		catch (Exception ex)
+		{
+			// Likely because economy plugin is missing/broken/not properly configured
 		}
 		
 		return true;
@@ -701,7 +806,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
-	public void createQuickTravel(Player player, String[] args)
+	private void createQuickTravel(Player player, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
 		if (args.length > 1)
@@ -719,7 +824,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			}
 			
 			/* Checks passed, create QT */
-			QuickTravelLocation newQT = locationManager.createQT(qtName, player.getLocation(), this.getOptions().getDefaultRadius());
+			QuickTravelLocation newQT = this.locationManager.createQT(qtName, player.getLocation(), this.getOptions().getDefaultRadius());
 			newQT.setDiscovered(player);
 			
 			player.sendMessage("QT " + ChatColor.AQUA + qtName + ChatColor.WHITE + " created.");
@@ -780,7 +885,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 						}
 						else
 						{
-							newQT.setFree(!((this.getOptions().canQtFromAnywhere() && this.getOptions().isFreeFromQts()) || this.getOptions().isFreeByDefault()));
+							newQT.setFree(!((this.getOptions().canQtFromAnywhere(null) && this.getOptions().isFreeFromQts()) || this.getOptions().isFreeByDefault()));
 							player.sendMessage("Free: " + ChatColor.GOLD + newQT.isFree());
 						}
 					}
@@ -899,6 +1004,49 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	public void setQuickTravelWelcome(CommandSender sender, String[] args)
+	{
+		/* Get arguments and deal with appropriately */
+		if (args.length > 1)
+		{
+			String qtName = args[1].toLowerCase();
+			
+			QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
+			if (qt == null)
+			{
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set greeting: " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+			
+			if (args.length > 2)
+			{
+				StringBuilder welcomeBuilder = new StringBuilder();
+				
+				for (int i = 2; i < args.length; i++)
+					welcomeBuilder.append(args[i]).append(" ");
+				
+				qt.setWelcomeMessage(welcomeBuilder.toString().trim());
+			}
+			else
+			{
+				qt.setWelcomeMessage("");
+			}
+			
+			this.locationManager.save();
+			
+			sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " greeting set to " + ChatColor.WHITE + qt.getWelcomeMessage());
+			return;
+		}
+		else
+		{
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets the QT welcome message for <name>.");
+			sender.sendMessage("/qt welcome <name> <welcome message>");
+			return;
+		}
+	}
+
 	public void setQuickTravelType(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -1015,13 +1163,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 						if (args.length > i + 1)
 						{
 							world = this.getServer().getWorld(args[i + 1]);
-							i++;
 							
 							if (world == null)
 							{
 								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set radius: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
 								return;
 							}
+							
+							i++;
 						}
 						else
 						{
@@ -1125,8 +1274,11 @@ public class QuickTravel extends JavaPlugin implements Listener
 			
 			boolean setPrimary = false;
 			boolean setSecondary = false;
+			boolean setWorldEdit = false;
+			boolean viewWorldEdit = false;
 			
 			String qtName = args[1];
+			Location location = player.getLocation();
 			
 			if (args.length > 2)
 			{
@@ -1138,13 +1290,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 						if (args.length > i + 1)
 						{
 							world = this.getServer().getWorld(args[i + 1]);
-							i++;
 							
 							if (world == null)
 							{
 								player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
 								return;
 							}
+							
+							i++;
 						}
 						else
 						{
@@ -1161,12 +1314,30 @@ public class QuickTravel extends JavaPlugin implements Listener
 						/* -a parameter given */
 						setPrimary = true;
 						setSecondary = false;
+						setWorldEdit = false;
 					}
 					else if (args[i].equalsIgnoreCase("-b") && !qtName.equals("*"))
 					{
 						/* -b parameter given */
 						setSecondary = true;
 						setPrimary = false;
+						setWorldEdit = false;
+					}
+					else if (args[i].equalsIgnoreCase("-s") && !qtName.equals("*"))
+					{
+						/* -s parameter given */
+						setSecondary = false;
+						setPrimary = false;
+						setWorldEdit = true;
+					}
+					else if (args[i].equalsIgnoreCase("-v") && !qtName.equals("*"))
+					{
+						viewWorldEdit = true;
+					}
+					else if (args[i].equalsIgnoreCase("-t") && !qtName.equals("*"))
+					{
+						/* -s parameter given */
+						location = player.getTargetBlock(null, 100).getLocation();
 					}
 					else
 					{
@@ -1197,24 +1368,60 @@ public class QuickTravel extends JavaPlugin implements Listener
 				
 				if (qt != null)
 				{
-					if (setPrimary == true || setSecondary == true)
+					if (setPrimary || setSecondary || setWorldEdit || viewWorldEdit)
 					{
 						if (player.getWorld().equals(qt.getWorld()))
 						{
 							qt.setType(Type.Cuboid);
 							
-							/* Checks passed, set range */
-							if (setPrimary)
-								qt.setPrimary(player.getLocation(), false);
-							else
-								qt.setSecondary(player.getLocation());
-
-							player.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + qt.getType() + ChatColor.WHITE + ".");
-							player.sendMessage(ChatColor.GOLD + (setPrimary ? "Primary" : "Secondary") + ChatColor.WHITE + " coords for " + ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " set.");
-							
-							if (qt.getSecondary() == null)
+							if (setWorldEdit)
 							{
-								player.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+								if (WorldEditSelection.haveWorldEdit())
+								{
+									Location primary = WorldEditSelection.getMinimumPoint(player);
+									Location secondary = WorldEditSelection.getMaximumPoint(player);
+									if (primary != null && secondary != null)
+									{
+										qt.setPrimary(primary, false);
+										qt.setSecondary(secondary);
+
+										player.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + qt.getType() + ChatColor.WHITE + ".");
+										player.sendMessage(ChatColor.WHITE + " coords for " + ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " set to " + ChatColor.GOLD + "WorldEdit selection.");
+									}
+									else
+									{
+										player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: WorldEdit selection was empty!");
+									}
+								}
+								else
+								{
+									player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set cuboid: WorldEdit was not detected!");
+								}
+							}
+							else if (setPrimary || setSecondary)
+							{
+								/* Checks passed, set range */
+								if (setPrimary)
+									qt.setPrimary(location, false);
+								else
+									qt.setSecondary(location);
+	
+								player.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " has been set to " + ChatColor.GOLD + qt.getType() + ChatColor.WHITE + ".");
+								player.sendMessage(ChatColor.GOLD + (setPrimary ? "Primary" : "Secondary") + ChatColor.WHITE + " coords for " + ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " set.");
+								
+								if (qt.getSecondary() == null)
+								{
+									player.sendMessage("Treating as " + ChatColor.GOLD + "radius" + ChatColor.WHITE + " until shape is confirmed with /qt cuboid.");
+								}
+							}
+							
+							if (viewWorldEdit && WorldEditSelection.haveWorldEdit())
+							{
+								if (qt.getPrimary() != null && qt.getSecondary() != null)
+								{
+									WorldEditSelection.setSelection(player, qt.getPrimary(), qt.getSecondary());
+									player.sendMessage(ChatColor.GOLD + "WorldEdit selection set to cuboid region for " + ChatColor.AQUA + qt.getName() + ChatColor.GOLD + ".");
+								}
 							}
 						}
 						else
@@ -1243,7 +1450,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		{
 			/* Invalid arguments, throw info message. */
 			player.sendMessage("Changes the type of QT <name> to cuboid.");
-			player.sendMessage("/qt radius <name>");
+			player.sendMessage("/qt cuboid <name | *> <-a | -b> <-v> <-t> <-w [world]>");
 			return;
 		}
 	}
@@ -1361,13 +1568,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 						if (args.length > i + 1)
 						{
 							world = this.getServer().getWorld(args[i + 1]);
-							i++;
 							
 							if (world == null)
 							{
 								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not " + action + ": Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
 								return;
 							}
+
+							i++;
 						}
 						else
 						{
@@ -1474,6 +1682,37 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	public void deleteQuickTravel(CommandSender sender, String[] args)
+	{
+		/* Get arguments and deal with appropriately */
+		if (args.length == 2)
+		{
+			String qtName = args[1];
+			QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
+			
+			if (qt != null)
+			{
+				this.locationManager.deleteQT(qt);
+				this.locationManager.save();
+				sender.sendMessage("QT " + ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " was deleted!");
+				return;
+			}
+			else
+			{
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not delete: " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+		}
+		else
+		{
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Deletes the specified QT. Cannot be undone!");
+			sender.sendMessage("/qt delete <name>");
+			return;
+		}
+	}
+	
 	public void setQuickTravelPrice(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -1555,442 +1794,185 @@ public class QuickTravel extends JavaPlugin implements Listener
 	
 	public void setQuickTravelFree(CommandSender sender, String[] args)
 	{
-		/* Get arguments and deal with appropriately */
-		World world = null;
-		boolean toggle = false;
-		boolean free = true;
-		
-		if (args.length > 2)
-		{
-			String qtName = args[1];
-
-			if (args[2].equalsIgnoreCase("true"))
-			{
-				toggle = false;
-				free = true;
-			}
-			else if (args[2].equalsIgnoreCase("false"))
-			{
-				toggle = false;
-				free = false;
-			}
-			else if (args[2].equalsIgnoreCase("toggle"))
-			{
-				toggle = true;
-			}
-			else
-			{
-				/* Invalid setting */
-				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
-				return;
-			}
-			
-			if (args.length > 3)
-			{
-				for (int i = 3; i < args.length; i++)
-				{
-					if (args[i].equalsIgnoreCase("-w"))
-					{
-						/* -w parameter given */
-						if (args.length > i + 1)
-						{
-							world = this.getServer().getWorld(args[i + 1]);
-							i++;
-							
-							if (world == null)
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
-								return;
-							}
-						}
-						else
-						{
-							/* No world given. */
-							if (qtName.equalsIgnoreCase("*"))
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: No world given for -w!");
-								return;
-							}
-						}
-					}
-					else
-					{
-						/* Invalid parameter */
-						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
-					}
-				}
-			}
-			
-			if (qtName.equals("*"))
-			{
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					this.locationManager.setQTFree(sender, world, toggle, free);
-
-					sender.sendMessage("Done.");
-				}
-				else
-				{
-					/* Player has not made any QTs yet */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: You have not made any QTs yet!");
-					return;
-				}
-			}
-			else
-			{
-				QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
-				
-				if (qt != null)
-				{
-					this.locationManager.setQTFree(sender, qt, toggle, free);
-				}
-				else
-				{
-					/* QT does not exist */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set free: " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
-					return;
-				}
-			}
-		
-			this.locationManager.save();
-		}
-		else
+		if (args.length < 3)
 		{
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Sets whether all travel to/from the selected QT is free.");
 			sender.sendMessage("/qt free <name | *> <true | false | toggle>");
 			return;
 		}
+		else
+		{
+			this.setQuickTravelProperty(sender, args, "free");
+		}
 	}
-	
+
 	public void setQuickTravelDiscovery(CommandSender sender, String[] args)
 	{
-		/* Get arguments and deal with appropriately */
-		World world = null;
-		boolean toggle = false;
-		boolean requireDiscovery = true;
-		
-		if (args.length > 2)
-		{
-			String qtName = args[1];
-
-			if (args[2].equalsIgnoreCase("true"))
-			{
-				toggle = false;
-				requireDiscovery = true;
-			}
-			else if (args[2].equalsIgnoreCase("false"))
-			{
-				toggle = false;
-				requireDiscovery = false;
-			}
-			else if (args[2].equalsIgnoreCase("toggle"))
-			{
-				toggle = true;
-			}
-			else
-			{
-				/* Invalid setting */
-				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
-				return;
-			}
-			
-			if (args.length > 3)
-			{
-				for (int i = 3; i < args.length; i++)
-				{
-					if (args[i].equalsIgnoreCase("-w"))
-					{
-						/* -w parameter given */
-						if (args.length > i + 1)
-						{
-							world = this.getServer().getWorld(args[i + 1]);
-							i++;
-							
-							if (world == null)
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
-								return;
-							}
-						}
-						else
-						{
-							/* No world given. */
-							if (qtName.equals("*"))
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: No world given for -w!");
-								return;
-							}
-						}
-					}
-					else
-					{
-						/* Invalid parameter */
-						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
-					}
-				}
-			}
-			
-			if (qtName.equals("*"))
-			{
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					this.locationManager.setQTRequiresDiscovery(sender, world, toggle, requireDiscovery);
-
-					sender.sendMessage("Done.");
-				}
-				else
-				{
-					/* Player has not made any QTs yet */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: You have not made any QTs yet!");
-					return;
-				}
-			}
-			else
-			{
-				QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
-				
-				if (qt != null)
-				{
-					this.locationManager.setQTRequiresDiscovery(sender, qt, toggle, requireDiscovery);
-				}
-				else
-				{
-					/* QT does not exist */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set discovery: " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
-					return;
-				}
-			}
-		
-			this.locationManager.save();
-		}
-		else
+		if (args.length < 3)
 		{
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Sets whether discovery is required for the selected QT.");
 			sender.sendMessage("/qt discovery <name | *> <true | false | toggle>");
 			return;
 		}
+		else
+		{
+			this.setQuickTravelProperty(sender, args, "discovery");
+		}
 	}
-	
+
 	public void setQuickTravelPermission(CommandSender sender, String[] args)
 	{
-		/* Get arguments and deal with appropriately */
-		World world = null;
-		boolean toggle = false;
-		boolean requirePermission = true;
-		
-		if (args.length > 2)
-		{
-			String qtName = args[1];
-
-			if (args[2].equalsIgnoreCase("true"))
-			{
-				toggle = false;
-				requirePermission = true;
-			}
-			else if (args[2].equalsIgnoreCase("false"))
-			{
-				toggle = false;
-				requirePermission = false;
-			}
-			else if (args[2].equalsIgnoreCase("toggle"))
-			{
-				toggle = true;
-			}
-			else
-			{
-				/* Invalid setting */
-				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
-				return;
-			}
-			
-			if (args.length > 3)
-			{
-				for (int i = 3; i < args.length; i++)
-				{
-					if (args[i].equalsIgnoreCase("-w"))
-					{
-						/* -w parameter given */
-						if (args.length > i + 1)
-						{
-							world = this.getServer().getWorld(args[i + 1]);
-							i++;
-							
-							if (world == null)
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
-								return;
-							}
-						}
-						else
-						{
-							/* No world given. */
-							if (qtName.equals("*"))
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: No world given for -w!");
-								return;
-							}
-						}
-					}
-					else
-					{
-						/* Invalid parameter */
-						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
-					}
-				}
-			}
-			
-			if (qtName.equals("*"))
-			{
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					this.locationManager.setQTRequiresPermissions(sender, world, toggle, requirePermission);
-
-					sender.sendMessage("Done.");
-				}
-				else
-				{
-					/* Player has not made any QTs yet */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: You have not made any QTs yet!");
-					return;
-				}
-			}
-			else
-			{
-				QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
-				
-				if (qt != null)
-				{
-					this.locationManager.setQTRequiresPermissions(sender, qt, toggle, requirePermission);
-				}
-				else
-				{
-					/* QT does not exist */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set perms: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-					return;
-				}
-			}
-		}
-		else
+		if (args.length < 3)
 		{
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Sets whether permissions are required for the selected QT.");
 			sender.sendMessage("/qt perms <name | *> <true | false | toggle>");
 			return;
 		}
+		else
+		{
+			this.setQuickTravelProperty(sender, args, "perms");
+		}
 	}
 	
 	public void setQuickTravelMultiworld(CommandSender sender, String[] args)
 	{
-		/* Get arguments and deal with appropriately */
-		World world = null;
-		boolean toggle = false;
-		boolean multiWorld = true;
-		
-		if (args.length > 2)
-		{
-			String qtName = args[1];
-
-			if (args[2].equalsIgnoreCase("true"))
-			{
-				toggle = false;
-				multiWorld = true;
-			}
-			else if (args[2].equalsIgnoreCase("false"))
-			{
-				toggle = false;
-				multiWorld = false;
-			}
-			else if (args[2].equalsIgnoreCase("toggle"))
-			{
-				toggle = true;
-			}
-			else
-			{
-				/* Invalid setting */
-				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
-				return;
-			}
-			
-			if (args.length > 3)
-			{
-				for (int i = 3; i < args.length; i++)
-				{
-					if (args[i].equalsIgnoreCase("-w"))
-					{
-						/* -w parameter given */
-						if (args.length > i + 1)
-						{
-							world = this.getServer().getWorld(args[i + 1]);
-							i++;
-							
-							if (world == null)
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
-								return;
-							}
-						}
-						else
-						{
-							/* No world given. */
-							if (qtName.equals("*"))
-							{
-								sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: No world given for -w!");
-								return;
-							}
-						}
-					}
-					else
-					{
-						/* Invalid parameter */
-						sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
-					}
-				}
-			}
-			
-			if (qtName.equals("*"))
-			{
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					this.locationManager.setQTMultiWorld(sender, world, toggle, multiWorld);
-
-					sender.sendMessage("Done.");
-				}
-				else
-				{
-					/* Player has not made any QTs yet */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: You have not made any QTs yet!");
-					return;
-				}
-			}
-			else
-			{
-				QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
-				
-				if (qt != null)
-				{
-					this.locationManager.setQTMultiWorld(sender, qt, toggle, multiWorld);
-				}
-				else
-				{
-					/* QT does not exist */
-					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set multiworld: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
-					return;
-				}
-			}
-			
-			this.locationManager.save();
-		}
-		else
+		if (args.length < 3)
 		{
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Sets whether the selected QT is multiworld.");
 			sender.sendMessage("/qt multiworld <name | *> <true | false | toggle>");
 			return;
 		}
+		else
+		{
+			this.setQuickTravelProperty(sender, args, "multiworld");
+		}
+	}
+
+	/**
+	 * @param sender
+	 * @param args
+	 * @param propertyName
+	 */
+	public void setQuickTravelProperty(CommandSender sender, String[] args, String propertyName)
+	{
+		World world = null;
+		boolean toggle = false;
+		boolean newValue = true;
+		String qtName = args[1].toLowerCase();
+
+		if (args[2].equalsIgnoreCase("true"))
+		{
+			toggle = false;
+			newValue = true;
+		}
+		else if (args[2].equalsIgnoreCase("false"))
+		{
+			toggle = false;
+			newValue = false;
+		}
+		else if (args[2].equalsIgnoreCase("toggle"))
+		{
+			toggle = true;
+		}
+		else
+		{
+			/* Invalid setting */
+			sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set " + ChatColor.AQUA + propertyName + ChatColor.GOLD + ": " + ChatColor.AQUA + args[2] + ChatColor.GOLD + " is not a valid setting!");
+			return;
+		}
+		
+		if (args.length > 3)
+		{
+			for (int i = 3; i < args.length; i++)
+			{
+				if (args[i].equalsIgnoreCase("-w"))
+				{
+					/* -w parameter given */
+					if (args.length > i + 1)
+					{
+						world = this.getServer().getWorld(args[i + 1]);
+						
+						if (world == null)
+						{
+							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set " + ChatColor.AQUA + propertyName + ChatColor.GOLD + ": Specified world " + ChatColor.WHITE + args[i + 1] + ChatColor.GOLD + " was not found");
+							return;
+						}
+
+						i++;
+					}
+					else
+					{
+						/* No world given. */
+						if (qtName.equals("*"))
+						{
+							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set " + ChatColor.AQUA + propertyName + ChatColor.GOLD + ": No world given for -w!");
+							return;
+						}
+					}
+				}
+				else
+				{
+					/* Invalid parameter */
+					sender.sendMessage(ChatColor.GOLD + args[i] + ChatColor.WHITE + " is not a valid parameter, ignoring.");
+				}
+			}
+		}
+		
+		if (qtName.equals("*"))
+		{
+			if (this.locationManager.getLocationCount() > 0)
+			{
+				this.locationManager.setQTProperty(sender, world, propertyName, toggle, newValue);
+				sender.sendMessage("Done.");
+			}
+			else
+			{
+				/* Player has not made any QTs yet */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set " + ChatColor.AQUA + propertyName + ChatColor.GOLD + ": You have not made any QTs yet!");
+				return;
+			}
+		}
+		else
+		{
+			QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
+			
+			if (qt != null)
+			{
+				this.locationManager.setQTProperty(sender, qt, propertyName, toggle, newValue);
+			}
+			else
+			{
+				/* QT does not exist */
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set " + ChatColor.AQUA + propertyName + ChatColor.GOLD + ": " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
+				return;
+			}
+		}
+
+		this.locationManager.save();
 	}
 	
+	public void setQuickTravelOption(CommandSender sender, String[] args)
+	{
+		if (args.length < 2)
+		{
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets a QuickTravel global option");
+			sender.sendMessage("/qt cfg <option> <value>");
+		}
+
+		String option = args.length > 1 ? args[1].toLowerCase() : null;
+		String value = args.length > 2 ? args[2] : null;
+		
+		this.getOptions().setOption(sender, option, value);
+		this.saveConfig();
+		
+		this.locationManager.updateOptions();
+	}
+
 	public void listQuickTravels(CommandSender sender, int page, boolean listAll)
 	{
 		if (sender instanceof Player)
@@ -2013,7 +1995,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		{
 			QuickTravelLocation qt = this.locationManager.getLocationAt(player.getLocation());
 			
-			if (qt != null || this.getOptions().canQtFromAnywhere())
+			if (qt != null || this.getOptions().canQtFromAnywhere(player))
 			{
 				List<QuickTravelLocation> destList = new ArrayList<QuickTravelLocation>();
 				
@@ -2122,32 +2104,24 @@ public class QuickTravel extends JavaPlugin implements Listener
 			if (listIndex >= start && listIndex <= end)
 			{
 				boolean inWorld = destination.isInWorld(player.getWorld());
-				String worldString = inWorld ? "" : "[" + destination.getWorld().getName() + "] ";
+				String worldString = inWorld ? "" : ChatColor.WHITE + "[" + ChatColor.BLUE + destination.getWorld().getName() + ChatColor.WHITE + "] ";
 
 				double travelCost = 0.0;
 				
 				if (qt != null)
 				{
-					/* Player is at a QT location */
-					if (qt == destination)
-					{
-						/* Player is already at the requested QT, do not send */
-						player.sendMessage(ChatColor.BLUE + "You are already at " + ChatColor.AQUA + destination.getName() + ChatColor.BLUE + "!");
-						return;
-					}
-					
 					travelCost = this.calculateChargeFromTo(player, qt, destination);
 				}
-				else if (this.getOptions().canQtFromAnywhere())
+				else if (this.getOptions().canQtFromAnywhere(player))
 				{
-					/* Player is not at a QT location, however QTs are enabled from anywhere */
+					/* Player is not at a QT location, however the player can QT from anywhere */
 					travelCost = this.calculateChargeFromAnywhere(player, destination);
 				}
 				
-				String message = worldString + ChatColor.AQUA + destination.getName() + ChatColor.WHITE;
+				String message = worldString + ChatColor.AQUA + destination.getName();
 				if (travelCost > 0)
 				{
-					message += " | " + ChatColor.GOLD + "Price: " + EcoSetup.economy.format(travelCost);
+					message += " | " + ChatColor.GOLD + "Price: " + ChatColor.WHITE + EcoSetup.economy.format(travelCost);
 				}
 
 				player.sendMessage(message);
@@ -2277,7 +2251,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return true;
 	}
 	
-	private int calculatePriceTo(Player player, QuickTravelLocation origin, QuickTravelLocation target)
+	private int calculateCharge(Player player, QuickTravelLocation origin, QuickTravelLocation target)
 	{
 		if (target != null)
 		{
@@ -2285,11 +2259,6 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 		
 		return 0;
-	}
-	
-	private int calculatePriceTo(Player player, QuickTravelLocation target)
-	{
-		return this.calculatePriceTo(player, null, target);
 	}
 	
 	private static boolean containsLetter(String s)
@@ -2325,8 +2294,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		reservedWords.add("r");
 		reservedWords.add("cuboid");
 		reservedWords.add("c");
-		reservedWords.add("update");
-		reservedWords.add("u");
+		reservedWords.add("move");
 		reservedWords.add("dest");
 		reservedWords.add("enable");
 		reservedWords.add("e");
@@ -2346,5 +2314,10 @@ public class QuickTravel extends JavaPlugin implements Listener
 		reservedWords.add("multi");
 		reservedWords.add("m");
 		reservedWords.add("*");
+		reservedWords.add("delete");
+		reservedWords.add("welcome");
+		reservedWords.add("greeting");
+		reservedWords.add("cfg");
+		reservedWords.add("reload");
 	}
 }
