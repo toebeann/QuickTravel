@@ -12,7 +12,7 @@ import org.dynmap.markers.MarkerSet;
 /**
  * Bridging class to display QT locations on dynmap
  *
- * @author Adam Mummery-Smith
+ * @author Mumfrey
  */
 public class QuickTravelDynmapLink
 {
@@ -47,14 +47,18 @@ public class QuickTravelDynmapLink
 				this.markerAPI = api.getMarkerAPI();
 				this.enabled = true;
 
-				plugin.info("Dynmap detected, enabling QT layer");
+				QuickTravel.info("Dynmap detected, enabling QT layer");
 			}
 			else
 			{
-				plugin.info("Dynmap was not detected");
+				QuickTravel.warning("Dynmap was not detected. Not enabling dynmap link.");
 			}
 		}
-		catch (Throwable th) {}
+		catch (Throwable th)
+		{
+			QuickTravel.severe("Error initialising dynmap link. The message was: " + th.getMessage());
+			this.enabled = false;
+		}
 	}
 	
 	/**
@@ -98,9 +102,12 @@ public class QuickTravelDynmapLink
 		// Add all QT locations to the marker set
 		for (QuickTravelLocation location : provider.getLocations())
 		{
-			Location loc = location.getPrimary();
-			Marker marker = this.markers.createMarker(location.getName(), location.getName(), loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), icon, false);
-			marker.setDescription("<b>Name:</b> " + location.getName() + "</b><br /><b>Type:</b> " + location.getType());
+			if (!location.isHiddenFromDynmap())
+			{
+				Location loc = location.getPrimary();
+				Marker marker = this.markers.createMarker(location.getName(), location.getName(), loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), icon, false);
+				marker.setDescription("<b><u>QuickTravel</u></b><br /><b>Name:</b> " + location.getName() + "</b>");
+			}
 		}
 	}
 }

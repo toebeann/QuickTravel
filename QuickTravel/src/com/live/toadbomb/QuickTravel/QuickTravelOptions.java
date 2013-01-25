@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.bukkit.ChatColor;
+import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
@@ -16,7 +18,7 @@ import org.bukkit.entity.Player;
  *
  * @author Mumfrey
  */
-public class QuickTravelOptions
+public class QuickTravelOptions implements TabCompleter
 {
 	private FileConfiguration config;
 	
@@ -45,14 +47,22 @@ public class QuickTravelOptions
 	private boolean useGlobalPrice = false;
 	private double globalPrice = 0.0;
 	private boolean enableEffects = true;
+	private boolean permissionsOverride = false;
+	private boolean enableDynmap = true;
+	
+	public void init(QuickTravel plugin)
+	{
+		this.config = plugin.getConfig();
+		
+		this.load();
+		plugin.saveConfig();
+	}
 
 	/**
 	 * Load settings from the plugin config
 	 */
-	protected void load(FileConfiguration config)
+	protected void load()
 	{
-		this.config = config;
-	
 		this.config.addDefault("radius", 5);
 		this.config.addDefault("height-modifier", 2);
 		this.config.addDefault("enabled-by-default", true);
@@ -73,6 +83,8 @@ public class QuickTravelOptions
 		this.config.addDefault("use-global-price", false);
 		this.config.addDefault("global-price", 0.0);
 		this.config.addDefault("enable-fx", true);
+		this.config.addDefault("permissions-override", false);
+		this.config.addDefault("enable-dynmap", true);
 		
 		this.config.options().copyDefaults(true);
 		
@@ -113,22 +125,8 @@ public class QuickTravelOptions
 		this.useGlobalPrice              = this.config.getBoolean("use-global-price", false);
 		this.globalPrice                 = Math.max(this.config.getDouble("global-price", 0.0), 0.0);
 		this.enableEffects               = this.config.getBoolean("enable-fx", true);
-	}
-	
-	/**
-	 * @return the enableEffects
-	 */
-	public boolean enableEffects()
-	{
-		return enableEffects;
-	}
-
-	/**
-	 * @param enableEffects the enableEffects to set
-	 */
-	public void setEnableEffects(boolean enableEffects)
-	{
-		this.enableEffects = enableEffects;
+		this.permissionsOverride         = this.config.getBoolean("permissions-override", false);
+		this.enableDynmap                = this.config.getBoolean("enable-dynmap", true);
 	}
 
 	/**
@@ -156,7 +154,7 @@ public class QuickTravelOptions
 					if (oValue != null)
 					{
 						this.config.set(optionName, oValue);
-						this.load(this.config);
+						this.load();
 					}
 					else
 					{
@@ -192,6 +190,12 @@ public class QuickTravelOptions
 		
 		if (matchingOptions.size() == 1)
 			return matchingOptions.get(0);
+		
+		if (matchingOptions.size() == 0)
+		{
+			this.listOptions(sender, this.config.getKeys(false));
+			return null;
+		}
 		
 		this.listOptions(sender, matchingOptions);
 		return null;
@@ -269,6 +273,75 @@ public class QuickTravelOptions
 		}
 
 		return null;
+	}
+	
+	@Override
+	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args)
+	{
+		List<String> matchingOptions = new ArrayList<String>();
+		String option = args[1].toLowerCase();
+		
+		for (String key : this.config.getKeys(false))
+		{
+			if (key.equals(option))
+			{
+				matchingOptions.clear();
+				matchingOptions.add(key);
+				return matchingOptions;
+			}
+			
+			if (key.startsWith(option)) matchingOptions.add(key);
+		}
+		
+		return matchingOptions;
+	}
+	
+	/**
+	 * @return
+	 */
+	public boolean isDynmapEnabled()
+	{
+		return enableDynmap;
+	}
+	
+	/**
+	 * @param enableDynmap
+	 */
+	public void setDynmapEnabled(boolean enableDynmap)
+	{
+		this.enableDynmap = enableDynmap;
+	}
+	
+	/**
+	 * @return the permissionsOverride
+	 */
+	public boolean permissionsOverride()
+	{
+		return permissionsOverride;
+	}
+
+	/**
+	 * @param permissionsOverride the permissionsOverride to set
+	 */
+	public void setPermissionsOverride(boolean permissionsOverride)
+	{
+		this.permissionsOverride = permissionsOverride;
+	}
+
+	/**
+	 * @return the enableEffects
+	 */
+	public boolean enableEffects()
+	{
+		return enableEffects;
+	}
+
+	/**
+	 * @param enableEffects the enableEffects to set
+	 */
+	public void setEnableEffects(boolean enableEffects)
+	{
+		this.enableEffects = enableEffects;
 	}
 
 	/**
@@ -478,5 +551,7 @@ public class QuickTravelOptions
 		optionValueTypes.put("use-global-price",               Boolean.class);              
 		optionValueTypes.put("global-price",                   Double.class);                     		
 		optionValueTypes.put("enable-fx",                      Boolean.class);              
+		optionValueTypes.put("permissions-override",           Boolean.class);              
+		optionValueTypes.put("enable-dynmap",                  Boolean.class);              
 	}
 }

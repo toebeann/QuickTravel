@@ -85,6 +85,12 @@ public class QuickTravelLocation
 	private double radiusSquared = 25.0;
 	
 	/**
+	 * If using a player-set cuboid, use the global height modifier for the cuboid region, otherwise
+	 * use the exact cuboid defined by the primary and secondary coords
+	 */
+	private boolean useCuboidHeightModifier = true;
+	
+	/**
 	 * Set of player names that have discovered this qt location 
 	 */
 	private Set<String> discoveredBy = new HashSet<String>();
@@ -109,6 +115,16 @@ public class QuickTravelLocation
 	 * Message to display when entering the region
 	 */
 	private String welcomeMessage = "";
+	
+	/**
+	 * Custom multiplier for this QT 
+	 */
+	private double multiplier = 1.0;
+	
+	/**
+	 * True if this QT should be hidden from being displayed on dynmap 
+	 */
+	private boolean hiddenFromDynmap = false;
 	
 	/**
 	 * @param name Name for this quicktravel location
@@ -158,19 +174,22 @@ public class QuickTravelLocation
 		this.reset(defaultRadius, enabledByDefault, requireDiscoveryByDefault, requirePermissionsByDefault, multiworldByDefault, freeByDefault);
 		
 		World world = Bukkit.getWorld(config.getString("world")); 
-
-		this.name               = config.getString("name", this.getName()).toLowerCase();
-		this.welcomeMessage     = config.getString("welcome-message", "");
-		this.type               = config.getString("type", "radius").toLowerCase().equals("cuboid") ? Type.Cuboid : Type.Radius;
-		this.enabled            = config.getBoolean("enabled", enabledByDefault);
-		this.requireDiscovery   = config.getBoolean("require-discovery", requireDiscoveryByDefault);
-		this.requirePermissions = config.getBoolean("require-permissions", requirePermissionsByDefault);
-		this.free               = config.getBoolean("free", freeByDefault);
-		this.multiworld         = config.getBoolean("multiworld", multiworldByDefault);
-
-		this.primary            = this.parseLocation(config.getConfigurationSection("coords.primary"), world, null);
-		this.secondary          = this.parseLocation(config.getConfigurationSection("coords.secondary"), world, null);
-		this.destination        = this.parseLocation(config.getConfigurationSection("coords.dest"), world, this.primary);
+		
+		this.name                    = config.getString("name", this.getName()).toLowerCase();
+		this.welcomeMessage          = config.getString("welcome-message", "");
+		this.type                    = config.getString("type", "radius").toLowerCase().equals("cuboid") ? Type.Cuboid : Type.Radius;
+		this.enabled                 = config.getBoolean("enabled", enabledByDefault);
+		this.requireDiscovery        = config.getBoolean("require-discovery", requireDiscoveryByDefault);
+		this.requirePermissions      = config.getBoolean("require-permissions", requirePermissionsByDefault);
+		this.free                    = config.getBoolean("free", freeByDefault);
+		this.multiworld              = config.getBoolean("multiworld", multiworldByDefault);
+		this.multiplier              = config.getDouble("multiplier", 1.0);
+		this.hiddenFromDynmap        = config.getBoolean("hidden", false);
+		this.useCuboidHeightModifier = config.getBoolean("hidden", false);
+		
+		this.primary                 = this.parseLocation(config.getConfigurationSection("coords.primary"), world, null);
+		this.secondary               = this.parseLocation(config.getConfigurationSection("coords.secondary"), world, null);
+		this.destination             = this.parseLocation(config.getConfigurationSection("coords.dest"), world, this.primary);
 		
 		this.setRadius(config.getDouble("radius", defaultRadius));
 		
@@ -213,6 +232,8 @@ public class QuickTravelLocation
 		config.set("require-permissions", this.requirePermissions );
 		config.set("free",                this.free);
 		config.set("multiworld",          this.multiworld);
+		config.set("multiplier",          this.multiplier);
+		config.set("hidden",              this.hiddenFromDynmap);
 		
 		if (this.primary != null)
 		{
@@ -262,15 +283,19 @@ public class QuickTravelLocation
 	 */
 	protected void reset(double defaultRadius, boolean enabledByDefault, boolean requireDiscoveryByDefault, boolean requirePermissionsByDefault, boolean multiworldByDefault, boolean freeByDefault)
 	{
-		this.type               = Type.Radius;
-		this.enabled            = enabledByDefault;
-		this.requireDiscovery   = requireDiscoveryByDefault;
-		this.requirePermissions = requirePermissionsByDefault;
-		this.free               = freeByDefault;
-		this.multiworld         = multiworldByDefault;
-		this.primary            = null;
-		this.secondary          = null;
-		this.destination        = null;
+		this.welcomeMessage          = "";
+		this.type                    = Type.Radius;
+		this.enabled                 = enabledByDefault;
+		this.requireDiscovery        = requireDiscoveryByDefault;
+		this.requirePermissions      = requirePermissionsByDefault;
+		this.free                    = freeByDefault;
+		this.multiworld              = multiworldByDefault;
+		this.primary                 = null;
+		this.secondary               = null;
+		this.destination             = null;
+		this.multiplier              = 1.0;
+		this.hiddenFromDynmap        = false;
+		this.useCuboidHeightModifier = true;
 		
 		this.setRadius(defaultRadius);
 		
@@ -322,11 +347,13 @@ public class QuickTravelLocation
 		// Check a cuboid region
 		if (this.type == Type.Cuboid && this.primary != null && this.secondary != null && coords != null)
 		{
+			boolean useHeightModifier = this.useCuboidHeightModifier || (this.primary.getBlockY() == this.secondary.getBlockY());
+			
 			int minX = Math.min(this.primary.getBlockX(), this.secondary.getBlockX());
 			int minY = Math.min(this.primary.getBlockY(), this.secondary.getBlockY());
 			int minZ = Math.min(this.primary.getBlockZ(), this.secondary.getBlockZ());
 			int maxX = Math.max(this.primary.getBlockX(), this.secondary.getBlockX()) + 1;
-			int maxY = Math.max(this.primary.getBlockY(), this.secondary.getBlockY()) + heightModifier;
+			int maxY = Math.max(this.primary.getBlockY(), this.secondary.getBlockY()) + (useHeightModifier ? heightModifier : 0);
 			int maxZ = Math.max(this.primary.getBlockZ(), this.secondary.getBlockZ()) + 1;
 			
 			return (coords.getX() >= minX && coords.getX() < maxX && coords.getY() >= minY && coords.getY() < maxY && coords.getZ() >= minZ && coords.getZ() < maxZ);
@@ -381,6 +408,22 @@ public class QuickTravelLocation
 	}
 
 	/**
+	 * @return the hiddenFromDynmap
+	 */
+	public boolean isHiddenFromDynmap()
+	{
+		return hiddenFromDynmap;
+	}
+
+	/**
+	 * @param hiddenFromDynmap the hiddenFromDynmap to set
+	 */
+	public void setHiddenFromDynmap(boolean hiddenFromDynmap)
+	{
+		this.hiddenFromDynmap = hiddenFromDynmap;
+	}
+
+	/**
 	 * @return the world
 	 */
 	public World getWorld()
@@ -425,10 +468,19 @@ public class QuickTravelLocation
 	{
 		if (this.requirePermissions)
 		{
-			return player.hasPermission("qt.use" + this.name);
+			return hasPermission(player);
 		}
 		
 		return true;
+	}
+
+	/**
+	 * @param player
+	 * @return
+	 */
+	public boolean hasPermission(Player player)
+	{
+		return player.hasPermission("qt.use" + this.name);
 	}
 	
 	/**
@@ -495,6 +547,7 @@ public class QuickTravelLocation
 	public void setPrimary(Location location, boolean moveDestination)
 	{
 		this.primary = new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+		this.useCuboidHeightModifier = false;
 		
 		if (this.secondary != null && !this.secondary.getWorld().equals(location.getWorld()))
 		{
@@ -519,10 +572,12 @@ public class QuickTravelLocation
 	 * Set the secondary location
 	 * 
 	 * @param location
+	 * @param usePreciseCuboid
 	 */
-	public void setSecondary(Location location)
+	public void setSecondary(Location location, boolean usePreciseCuboid)
 	{
 		this.secondary = new Location(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+		this.useCuboidHeightModifier = !usePreciseCuboid;
 	}
 	
 	/**
@@ -617,6 +672,24 @@ public class QuickTravelLocation
 	public void setFree(boolean free)
 	{
 		this.free = free;
+		if (free) this.multiplier = 1.0;
+	}
+	
+	/**
+	 * @return
+	 */
+	public double getMultiplier()
+	{
+		return multiplier;
+	}
+	
+	/**
+	 * @param multiplier
+	 */
+	public void setMultiplier(double multiplier)
+	{
+		this.multiplier = Math.max(multiplier, 0.0);
+		this.free = false;
 	}
 	
 	/**
@@ -684,7 +757,35 @@ public class QuickTravelLocation
 	{
 		return (this.chargeFrom.containsKey(origin)) ? this.chargeFrom.get(origin) : 0.0;
 	}
-	
+
+	/**
+	 * Calculates the change from another QT
+	 * 
+	 * @param player
+	 * @param origin
+	 * @param priceMultiplier
+	 * @param multiWorldMultiplier
+	 * @return
+	 */
+	public int calculateChargeFrom(Player player, QuickTravelLocation origin, double priceMultiplier, double multiWorldMultiplier)
+	{
+		Location fromLocation = origin != null ? origin.getTargetLocation() : (player != null ? player.getLocation() : null);
+		Location toLocation = this.getTargetLocation();
+		
+		World currentWorld = player != null ? player.getWorld() : Bukkit.getServer().getWorlds().get(0);
+		
+		if (fromLocation == null) fromLocation = new Location(currentWorld, 0, 0, 0);
+		if (toLocation == null) toLocation = new Location(currentWorld, 0, 0, 0);
+		
+		double xDiff = Math.abs(fromLocation.getBlockX() - toLocation.getBlockX());
+		double yDiff = Math.abs(fromLocation.getBlockY() - toLocation.getBlockY());
+		double zDiff = Math.abs(fromLocation.getBlockZ() - toLocation.getBlockZ());
+		
+		double multiplier = (!fromLocation.getWorld().equals(toLocation.getWorld())) ? multiWorldMultiplier : priceMultiplier;
+
+		return (int)Math.ceil((xDiff + yDiff + zDiff) * multiplier * this.multiplier);
+	}
+
 	/**
 	 * @param origin
 	 * @param newCharge
@@ -742,34 +843,6 @@ public class QuickTravelLocation
 	public void setArrivalEffect(QuickTravelFX arriveFX)
 	{
 		this.arriveFX = arriveFX;
-	}
-
-	/**
-	 * Calculates the change from another QT
-	 * 
-	 * @param player
-	 * @param origin
-	 * @param priceMultiplier
-	 * @param multiWorldMultiplier
-	 * @return
-	 */
-	public int calculateChargeFrom(Player player, QuickTravelLocation origin, double priceMultiplier, double multiWorldMultiplier)
-	{
-		Location fromLocation = origin != null ? origin.getTargetLocation() : (player != null ? player.getLocation() : null);
-		Location toLocation = this.getTargetLocation();
-		
-		World currentWorld = player != null ? player.getWorld() : Bukkit.getServer().getWorlds().get(0);
-		
-		if (fromLocation == null) fromLocation = new Location(currentWorld, 0, 0, 0);
-		if (toLocation == null) toLocation = new Location(currentWorld, 0, 0, 0);
-		
-		double xDiff = Math.abs(fromLocation.getBlockX() - toLocation.getBlockX());
-		double yDiff = Math.abs(fromLocation.getBlockY() - toLocation.getBlockY());
-		double zDiff = Math.abs(fromLocation.getBlockZ() - toLocation.getBlockZ());
-		
-		double multiplier = (!fromLocation.getWorld().equals(toLocation.getWorld())) ? multiWorldMultiplier : priceMultiplier;
-
-		return (int)Math.ceil((xDiff + yDiff + zDiff) * multiplier);
 	}
 	
 	/**

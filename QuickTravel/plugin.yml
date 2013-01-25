@@ -33,6 +33,8 @@ permissions:
       qt.admin.welcome: true
       qt.admin.cfg: true
       qt.admin.reload: true
+      qt.admin.multiplier: true
+      qt.admin.hidden: true
   qt.admin.create:
     description: Gives access to /qt create
     default: false
@@ -89,6 +91,12 @@ permissions:
     default: false
   qt.admin.reload:
     description: Gives access to /qt reload
+    default: false
+  qt.admin.multiplier:
+    description: Gives access to /qt multiplier
+    default: false
+  qt.admin.hidden:
+    description: Gives access to /qt hidden
     default: false
   qt.use.*:
     description: Gives player permission to use/discover all QTs

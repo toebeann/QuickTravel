@@ -133,6 +133,11 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	{
 		return this.locations.size();
 	}
+	
+	public void beginQuickTravel(Player player, double cost, QuickTravelLocation origin, QuickTravelLocation target, QuickTravelFX wildernessEffect)
+	{
+		this.beginQuickTravel(new QuickTravelPassport(player, cost, origin, target, wildernessEffect, this.plugin.getOptions(), this));
+	}
 
 	/**
 	 * Schedule a quicktravel
@@ -148,7 +153,6 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		{
 			passport.preTeleport();
 			passport.doTeleport();
-			return;
 		}
 		else 
 		{
@@ -285,6 +289,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		else if (propertyName.equals("discovery"))  this.setQTRequiresDiscovery  (sender, world, toggle, newValue);
 		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, world, toggle, newValue);
 		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, world, toggle, newValue);
+		else if (propertyName.equals("hidden"))     this.setQTHiddenFromDynmap   (sender, world, toggle, newValue);
 	}
 	
 	/**
@@ -303,6 +308,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		else if (propertyName.equals("discovery"))  this.setQTRequiresDiscovery  (sender, qt, toggle, newValue);
 		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, qt, toggle, newValue);
 		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, qt, toggle, newValue);
+		else if (propertyName.equals("hidden"))     this.setQTHiddenFromDynmap   (sender, qt, toggle, newValue);
 	}
 	
 	/**
@@ -511,6 +517,34 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	{
 		qt.setMultiWorld(toggle ? !qt.isMultiworld() : multiWorld);
 		sender.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " is multiworld: " + ChatColor.GOLD + (qt.isMultiworld() ? "enabled" : "disabled") + ChatColor.WHITE + ".");
+	}
+	
+	/**
+	 * Sets the multiworld flag of all QT's in the specified world
+	 * 
+	 * @param sender
+	 * @param world World to set or null to set all
+	 * @param toggle
+	 * @param multiWorld
+	 */
+	public void setQTHiddenFromDynmap(CommandSender sender, World world, boolean toggle, boolean multiWorld)
+	{
+		for (QuickTravelLocation qt : this.locations.values())
+			if (qt.isInWorld(world)) this.setQTHiddenFromDynmap(sender, qt, toggle, multiWorld);
+	}
+	
+	/**
+	 * Sets the multiworld flag of the specified QT
+	 * 
+	 * @param sender
+	 * @param qt
+	 * @param toggle
+	 * @param multiWorld
+	 */
+	public void setQTHiddenFromDynmap(CommandSender sender, QuickTravelLocation qt, boolean toggle, boolean multiWorld)
+	{
+		qt.setHiddenFromDynmap(toggle ? !qt.isMultiworld() : multiWorld);
+		sender.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " is hidden: " + ChatColor.GOLD + (qt.isHiddenFromDynmap() ? "true (hidden)" : "false (visible)") + ChatColor.WHITE + ".");
 	}
 
 	/**

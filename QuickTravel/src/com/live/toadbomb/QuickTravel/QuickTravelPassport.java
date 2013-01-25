@@ -85,19 +85,21 @@ public class QuickTravelPassport
 	 * @param options
 	 * @param notify
 	 */
-	public QuickTravelPassport(Player player, double cost, String message, QuickTravelLocation origin, QuickTravelLocation target, QuickTravelFX wildernessEffect, QuickTravelOptions options, QuickTravelCallback notify)
+	public QuickTravelPassport(Player player, double cost, QuickTravelLocation origin, QuickTravelLocation target, QuickTravelFX wildernessEffect, QuickTravelOptions options, QuickTravelCallback notify)
 	{
 		super();
 		
 		this.player          = player;
 		this.cost            = cost;
-		this.message         = message;
 		this.origin          = origin;
 		this.target          = target;
 		this.arrivalEffect   = target.getArrivalEffect();
 		this.departureEffect = origin != null ? origin.getDepartureEffect() : wildernessEffect;
 		this.options         = options;
 		this.notifyCallback  = notify;
+
+		String costMessage = (cost > 0 && EcoSetup.economy != null) ? ChatColor.BLUE + " for " + ChatColor.GOLD + EcoSetup.economy.format(cost) : "";
+		this.message = ChatColor.BLUE + "QuickTravelling to " + ChatColor.AQUA + target.getName() + costMessage + ChatColor.BLUE + "...";
 	}
 	
 	/**
@@ -160,25 +162,27 @@ public class QuickTravelPassport
 	 */
 	public void doTeleport()
 	{
-		if (this.cost > 0 && this.options.enableEconomy() && EcoSetup.economy != null)
-		{
-			if (EcoSetup.economy.has(this.player.getName(), this.cost))
-			{
-				this.chargePlayer();
-			}
-			else
-			{
-				player.sendMessage("You do not have enough money to go there.");
-				return;
-			}
-		}
-
 		Location originLocation = this.player.getLocation();
 		Location targetLocation = this.target.getTargetLocation();
 		
 		if (targetLocation != null && this.player.getLocation() != null)
 		{		
-			Location destination = this.options.enableSafetyChecks() ? this.checkSafe(targetLocation, this.player) : targetLocation;
+			// We have to check the player has enough funds again here, otherwise players could cheat a system
+			// with warm-up time by beginning the QT then banking or transferring funds before the teleport occurs.
+			// On the other hand we can't charge the player BEFORE this point because they may leave the QT radius
+			// or may disconnect from the server.
+			if (this.cost > 0 && this.options.enableEconomy() && EcoSetup.economy != null)
+			{
+				if (!EcoSetup.economy.has(this.player.getName(), this.cost))
+				{
+					player.sendMessage("You do not have enough money to go there.");
+					return;
+				}
+				
+				this.chargePlayer();
+			}
+
+			Location destination = this.checkSafe(targetLocation, this.player);
 			this.player.teleport(destination);
 			
 			if (this.options.enableEffects())
@@ -225,20 +229,23 @@ public class QuickTravelPassport
 	 */
 	public Location checkSafe(Location targetLocation, Player p)
 	{
-		Block targetBlock = targetLocation.getBlock();
-		boolean fixed = false;
-		
-		for (int pass = 0; pass < 2; pass++)
+		if (this.options.enableSafetyChecks())
 		{
-			for (int yOffset = 3; yOffset > -2; yOffset--)
+			Block targetBlock = targetLocation.getBlock();
+			boolean fixed = false;
+			
+			for (int pass = 0; pass < 2; pass++)
 			{
-				for (int xOffset = -1; xOffset < 2; xOffset++)
+				for (int yOffset = 3; yOffset > -2; yOffset--)
 				{
-					for (int zOffset = -1; zOffset < 2; zOffset++)
+					for (int xOffset = -1; xOffset < 2; xOffset++)
 					{
-						Block adjacentBlock = targetBlock.getRelative(xOffset, yOffset, zOffset);
-						fixed |= this.makeSafe(adjacentBlock, (yOffset > -1 && yOffset < 2) && xOffset == 0 && zOffset == 0, yOffset == 0, fixed);
-					}				
+						for (int zOffset = -1; zOffset < 2; zOffset++)
+						{
+							Block adjacentBlock = targetBlock.getRelative(xOffset, yOffset, zOffset);
+							fixed |= this.makeSafe(adjacentBlock, (yOffset > -1 && yOffset < 2) && xOffset == 0 && zOffset == 0, yOffset == 0, fixed);
+						}				
+					}
 				}
 			}
 		}
