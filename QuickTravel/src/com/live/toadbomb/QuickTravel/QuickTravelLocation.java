@@ -173,7 +173,7 @@ public class QuickTravelLocation
 	{
 		this.reset(defaultRadius, enabledByDefault, requireDiscoveryByDefault, requirePermissionsByDefault, multiworldByDefault, freeByDefault);
 		
-		World world = Bukkit.getWorld(config.getString("world")); 
+		World world = Bukkit.getWorld(config.getString("world", Bukkit.getWorlds().get(0).getName())); 
 		
 		this.name                    = config.getString("name", this.getName()).toLowerCase();
 		this.welcomeMessage          = config.getString("welcome-message", "");
@@ -226,7 +226,7 @@ public class QuickTravelLocation
 	{
 		config.set("name",                this.name);
 		config.set("welcome-message",     this.welcomeMessage);
-		config.set("type",                this.type.name());
+		config.set("type",                this.type.name().toLowerCase());
 		config.set("radius",              this.radius);
 		config.set("require-discovery",   this.requireDiscovery);
 		config.set("require-permissions", this.requirePermissions );
@@ -235,17 +235,22 @@ public class QuickTravelLocation
 		config.set("multiplier",          this.multiplier);
 		config.set("hidden",              this.hiddenFromDynmap);
 		
+		// Fall back to default world if something has gone wrong
+		String worldName = Bukkit.getWorlds().get(0).getName();
+		
 		if (this.primary != null)
 		{
 			if (this.primary.getWorld() != null)
 			{
-				config.set("world", this.primary.getWorld().getName());
+				worldName = this.primary.getWorld().getName();
 			}
 			
 			config.set("coords.primary.x", this.primary.getX()); 
 			config.set("coords.primary.y", this.primary.getY()); 
 			config.set("coords.primary.z", this.primary.getZ()); 
 		}
+		
+		config.set("world", worldName);
 		
 		if (this.secondary != null)
 		{
@@ -392,9 +397,9 @@ public class QuickTravelLocation
 	 * 
 	 * @return welcome message
 	 */
-	public String getWelcomeMessage()
+	public String getWelcomeMessage(String playerName)
 	{
-		return this.welcomeMessage.length() > 0 ? this.welcomeMessage.replaceAll("(?<!\046)\046([0-9a-fklmnor])", "\247$1").replaceAll("\046\046", "\046") : ChatColor.BLUE + "You have arrived at " + ChatColor.AQUA + this.getName() + ChatColor.BLUE + ".";
+		return this.welcomeMessage.length() > 0 ? this.welcomeMessage.replaceAll("(?<!\046)\046([0-9a-fklmnor])", "\247$1").replaceAll("\046\046", "\046").replace("%player%", playerName) : ChatColor.BLUE + "You have arrived at " + ChatColor.AQUA + this.getName() + ChatColor.BLUE + ".";
 	}
 	
 	/**

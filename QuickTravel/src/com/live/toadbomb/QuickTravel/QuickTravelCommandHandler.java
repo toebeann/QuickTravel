@@ -389,7 +389,7 @@ public class QuickTravelCommandHandler implements CommandExecutor, TabCompleter
 					return true;
 				}
 				
-				this.plugin.quickTravel(args, (Player)sender);
+				this.plugin.quickTravel((Player)sender, args[0]);
 				return true;
 			}
 		}

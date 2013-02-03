@@ -1,6 +1,9 @@
 package com.live.toadbomb.QuickTravel;
 
+import java.util.logging.Logger;
+
 import org.bukkit.ChatColor;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -15,6 +18,11 @@ import org.bukkit.entity.Player;
  */
 public class QuickTravelPassport
 {
+	/**
+	 * Log
+	 */
+	private static Logger log = Logger.getLogger("QuickTravel");
+
 	/**
 	 * Player being teleported
 	 */
@@ -148,11 +156,27 @@ public class QuickTravelPassport
 	}
 
 	/**
-	 * Play effect immediately prior to teleporting
+	 * Play effect immediately prior to teleporting, also check that the target chunk is loaded
 	 */
 	public void preTeleport()
 	{
 		if (this.options.enableEffects() && this.departureEffect != null) this.departureEffect.playPreTeleportEffect(this.player.getLocation(), 0);
+
+		// This should hopefully prevent the getting-stuck-in-the-floor problem in most cases
+		Location targetLocation = this.target.getTargetLocation();
+		if (targetLocation != null && targetLocation.getWorld() != null && this.player.getLocation() != null)
+		{
+			if (!targetLocation.getWorld().isChunkLoaded(targetLocation.getBlockX(), targetLocation.getBlockZ()))
+			{
+				log.info("Preparing to teleport player " + this.player.getName() + " to an unloaded chunk. Preoading chunk...");
+				Chunk targetChunk = targetLocation.getWorld().getChunkAt(targetLocation);
+				
+				if (targetChunk != null)
+					log.info("Successfully preloaded chunk at chunk coordinates [x=" + targetChunk.getX() + " z=" + targetChunk.getZ() + "]");
+				else
+					log.warning("Preloading target chunk failed.");
+			}
+		}
 	}
 	
 	/**

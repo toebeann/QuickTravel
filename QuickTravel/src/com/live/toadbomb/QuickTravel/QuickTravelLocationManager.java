@@ -134,9 +134,25 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		return this.locations.size();
 	}
 	
-	public void beginQuickTravel(Player player, double cost, QuickTravelLocation origin, QuickTravelLocation target, QuickTravelFX wildernessEffect)
+	/**
+	 * Schedule a quicktravel
+	 * 
+	 * @param player Pla
+	 * @param cost
+	 * @param origin
+	 * @param target
+	 * @param wildernessEffect
+	 */
+	public void scheduleQuickTravel(Player player, double cost, QuickTravelLocation origin, QuickTravelLocation target, QuickTravelFX wildernessEffect)
 	{
-		this.beginQuickTravel(new QuickTravelPassport(player, cost, origin, target, wildernessEffect, this.plugin.getOptions(), this));
+		if (player != null && target != null)
+		{
+			this.beginQuickTravel(new QuickTravelPassport(player, cost, origin, target, wildernessEffect, this.plugin.getOptions(), this));
+		}
+		else if (target == null)
+		{
+			QuickTravel.warning("Attempted to send player to a null destination!");
+		}
 	}
 
 	/**
@@ -145,7 +161,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	 * @param passport Quicktravel details
 	 * @return
 	 */
-	public void beginQuickTravel(QuickTravelPassport passport)
+	private void beginQuickTravel(QuickTravelPassport passport)
 	{
 		if (passport == null) return;
 	
@@ -563,6 +579,20 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 			locationsConfig.setDefaults(defLocations);
 		}
 		
+		double lastVersion = locationsConfig.getDouble("version", 0.7);
+		
+		if (lastVersion < 0.8)
+		{
+			this.plugin.warning("Old version config detected, upgrading to new config");
+			try
+			{
+				File configPath = this.locationsFile.getParentFile();
+				File backupLocationsFile = new File(configPath, "locations.bak.yml");
+				locationsConfig.save(backupLocationsFile);
+			}
+			catch (Exception ex) {}
+		}
+		
 		// Get the "locations" section which is the root node in the locations config 
 		MemorySection locationSections = (MemorySection)locationsConfig.getConfigurationSection("locations");
 	
@@ -617,6 +647,8 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	public void save()
 	{
 		FileConfiguration locationsConfig = new YamlConfiguration();
+		
+		locationsConfig.set("version", 0.8);
 		
 		ConfigurationSection locationsSection = locationsConfig.createSection("locations");
 		

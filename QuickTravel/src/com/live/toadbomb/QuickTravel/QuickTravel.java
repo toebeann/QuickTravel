@@ -101,6 +101,9 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return this.options;
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.bukkit.plugin.java.JavaPlugin#onEnable()
+	 */
 	@Override
 	public void onEnable()
 	{
@@ -112,7 +115,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		
 		this.locationManager = new QuickTravelLocationManager(this);
 		
-		PluginManager pluginManager = getServer().getPluginManager();
+		PluginManager pluginManager = this.getServer().getPluginManager();
 		/* Check if Vault is required */
 		if (this.getOptions().enableEconomy())
 		{
@@ -167,68 +170,93 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.commandHandler = new QuickTravelCommandHandler(this);
 	}
 	
+	/* (non-Javadoc)
+	 * @see org.bukkit.plugin.java.JavaPlugin#onDisable()
+	 */
 	@Override
 	public void onDisable()
 	{
+		// Shut down the dynmap module if it was previously initialised
 		if (this.dynmapLink != null)
 		{
 			this.dynmapLink.disable();
 			this.dynmapLink = null;
 		}
 		
+		// Shut down the warmup/cooldown task. This probably isn't necessary for normal onDisable
+		// but is here to support /qt reload
 		if (this.warmUpCoolDownTask != null)
 		{
 			this.warmUpCoolDownTask.cancel();
 			this.warmUpCoolDownTask = null;
 		}
 		
+		// Shut down and remove references to helpers
 		this.locationManager.save();
 		this.locationManager = null;
 		this.options = null;
 		this.commandHandler = null;
 		
+		// Clear the player location cache
 		this.playerAt.clear();
 	}
 
-	@EventHandler(priority = EventPriority.LOW)
+	/**
+	 * Player move event callback. Here we handle QT discovery and notifying players that they are in range of a QT
+	 * 
+	 * @param event
+	 */
+	@EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
 	public void onPlayerMove(PlayerMoveEvent event)
 	{
 		Player player = event.getPlayer();
 		String playerName = player.getName();
 		
+		// Basic permissions check, don't bother doing anything if the player doesn't have permissions to use QT's
 		if (!player.hasPermission("qt.user")) return;
 
+		// Get QT at the player's location
 		QuickTravelLocation qt = this.locationManager.getLocationAt(player.getLocation());
 		
+		// If the player is standing on a QT 
 		if (qt != null && qt.checkPermission(player))
 		{
-			boolean discovered = qt.isDiscoveredBy(player);
-
-			if (!discovered)
+			// If the player hasn't previously discovered this QT, discover it now
+			if (!qt.isDiscoveredBy(player))
 			{
+				// Set the discovered state of the QT
 				qt.setDiscovered(player);
 				this.locationManager.save();
 				
+				// Notify the player
 				player.sendMessage(ChatColor.BLUE + "You have discovered " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
 				player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 			}
 			else
 			{
-				if (!qt.equals(playerAt.get(playerName)))
+				// If the *current* qt is different to the last qt the player was at, then notify the player they have arrived
+				if (!qt.equals(this.playerAt.get(playerName)))
 				{
-					player.sendMessage(qt.getWelcomeMessage());
+					player.sendMessage(qt.getWelcomeMessage(playerName));
 					player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 				}
-						
-				playerAt.put(playerName, qt);
+				
+				// Store the player's current location
+				this.playerAt.put(playerName, qt);
 			}
 		}
 		else
 		{
-			playerAt.remove(playerName);
+			// Player is not at a QT, remove the QT presence entry
+			this.playerAt.remove(playerName);
 		}
 	}
 	
+	/**
+	 * Called when a player disconnects/kicked, remove the player from the presence map
+	 * 
+	 * @param event
+	 */
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onPlayerLeave(PlayerQuitEvent event) 
 	{
@@ -236,8 +264,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 			this.playerAt.remove(event.getPlayer().getName());
 	}
 	
+	/**
+	 * Callback from the location manager to notify us that something changed (locations were saved)
+	 */
 	public void onLocationsUpdated()
 	{
+		// Update dynmap if it's active
 		if (this.dynmapLink != null)
 		{
 			this.dynmapLink.update(this.locationManager);
@@ -245,21 +277,24 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 	
 	/**
-	 * @param args
-	 * @param player
+	 * Attempts to QT the player to the QT specified
+	 * 
+	 * @param player Player to QT
+	 * @param targetQtName Name of a target QT to attempt to travel to 
 	 */
 	@SuppressWarnings("cast")
-	protected void quickTravel(String[] args, Player player)
+	protected void quickTravel(Player player, String targetQtName)
 	{
 		try
 		{
 			/* Argument is a number, throw list at player */
-			int page = Math.max(1, Integer.parseInt(args[0]));
+			int page = Math.max(1, Integer.parseInt(targetQtName));
 			this.listQuickTravels(player, page, false);
 			return;
 		}
 		catch (NumberFormatException e) {}
 		
+		// Check player's cooldown state, if they are cooling down then refuse the teleport
 		int coolDownTicksRemaining = this.locationManager.getPlayerTeleportCooldown(player);
 		if (coolDownTicksRemaining > 0)
 		{
@@ -268,12 +303,13 @@ public class QuickTravel extends JavaPlugin implements Listener
 			return;
 		}
 		
+		// Get the originating QT (may be null if player is in the wilderness) and the target qt from the args 
 		QuickTravelLocation origin = this.locationManager.getLocationAt(player.getLocation());
-		QuickTravelLocation target = this.locationManager.getLocationByName(args[0]); 
+		QuickTravelLocation target = this.locationManager.getLocationByName(targetQtName); 
 		
 		/* Argument presumed to be a request to QT
 		 * Check QT is valid */
-		if (this.checkPlayerCanTravelFromTo(player, origin, target, args[0], true))
+		if (this.checkPlayerCanTravelFromTo(player, origin, target, targetQtName, true))
 		{
 			double travelCost = 0.0;
 			
@@ -304,7 +340,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			/* Check player has required funds and then send QT */
 			if (this.checkPlayerHasFunds(player, travelCost))
 			{
-				this.beginQuickTravel(player, origin, target, travelCost);
+				this.locationManager.scheduleQuickTravel(player, travelCost, origin, target, this.wildernessDepartureFX);
 			}
 		}
 		else
@@ -318,17 +354,19 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
-	 * @param player
-	 * @param target
-	 * @param travelCost
+	 * Calculate the charge to the specified target qt from the wilderness
+	 * 
+	 * @param player Player to calculate charge for
+	 * @param target Target qt to calculate charge to
 	 * @return
 	 */
 	private double calculateChargeFromAnywhere(Player player, QuickTravelLocation target)
 	{
+		// No charge if economy is disabled or if player has permissions to teleport for free
 		if (!economyEnabled || player.hasPermission("qt.free")) return 0.0;
 		
 		double travelCost = 0.0;
-		
+
 		if (!this.getOptions().isFreeByDefault())
 		{
 			/* Economy is enabled QTs are not free by default
@@ -353,10 +391,11 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
-	 * @param player
-	 * @param origin
-	 * @param target
-	 * @param travelCost
+	 * Calculate the charge to the specified target qt from another specified QT
+	 * 
+	 * @param player Player to calculate charge for
+	 * @param origin Origin qt to calculate charge from
+	 * @param target Target qt to calculate charge to
 	 * @return
 	 */
 	private double calculateChargeFromTo(Player player, QuickTravelLocation origin, QuickTravelLocation target)
@@ -368,6 +407,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		/* Economy is enabled and one or other QT is not free */
 		if (!(origin.isFree() || target.isFree()))
 		{
+			// shouldChargeFrom returns true if the QT has an entry in its charge map for the specified origin
 			if (target.shouldChargeFrom(origin))
 			{
 				/* Price has been manually set for QT */
@@ -396,8 +436,10 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
-	 * @param player
-	 * @param travelCost
+	 * Verify that the player has sufficient funds
+	 * 
+	 * @param player Player to check
+	 * @param travelCost Charge to check for
 	 */
 	private boolean checkPlayerHasFunds(Player player, double travelCost)
 	{
@@ -414,19 +456,18 @@ public class QuickTravel extends JavaPlugin implements Listener
 		catch (Exception ex)
 		{
 			// Likely because economy plugin is missing/broken/not properly configured
+			warning("Error checking player funds, check the enconomy plugin is correctly registered!");
 		}
 		
 		return true;
 	}
 	
-	private void beginQuickTravel(Player player, QuickTravelLocation origin, QuickTravelLocation target, double cost)
-	{
-		if (player != null && target != null)
-		{
-			this.locationManager.beginQuickTravel(player, cost, origin, target, this.wildernessDepartureFX);
-		}
-	}
-	
+	/**
+	 * Create a new QuickTravel location using the player's location and the specified arguments
+	 * 
+	 * @param player Player creating the QT, player's location will be used for the initial position of the QT
+	 * @param args Command-line arguments
+	 */
 	protected void createQuickTravel(Player player, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -434,13 +475,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 		{
 			String qtName = args[1].toLowerCase();
 
+			// Check for a valid identifier
 			if (!this.checkQTNameIsValid(player, qtName, "create"))
 				return;
 			
 			if (this.locationManager.getLocationByName(qtName) != null)
 			{
 				/* QT with name chosen already exists */
-				player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not " + "create" + ": " + ChatColor.AQUA + qtName + ChatColor.GOLD + " already exists!");
+				player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not create" + ": " + ChatColor.AQUA + qtName + ChatColor.GOLD + " already exists!");
 				return;
 			}
 			
@@ -453,7 +495,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			/* QT created, check optional parameters and set options. */
 			if (args.length > 2)
 			{
-				configureNewQuickTravel(newQT, player, args);
+				this.configureNewQuickTravel(player, args, newQT);
 			}
 			
 			this.locationManager.save();
@@ -467,11 +509,13 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
-	 * @param qt
-	 * @param player
-	 * @param args
+	 * Called from createQuickTravel() to apply additional settings to the QT based on the supplied arguments
+	 * 
+	 * @param player Player creating the QT, player's location will be used for the initial position of the QT
+	 * @param args Command-line arguments
+	 * @param qt Newly-created QT
 	 */
-	private void configureNewQuickTravel(QuickTravelLocation qt, Player player, String[] args)
+	private void configureNewQuickTravel(Player player, String[] args, QuickTravelLocation qt)
 	{
 		for (int i = 2; i < args.length; i++)
 		{
@@ -589,6 +633,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Renames a QT point based on the supplied arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void renameQuickTravel(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -631,6 +681,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Sets the price multiplier for a specific QT based on the specified command-line arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelMultiplier(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -647,32 +703,34 @@ public class QuickTravel extends JavaPlugin implements Listener
 				return;
 			}
 			
-			if (args.length > 2)
-			{
-				try
-				{
-					multiplier = Double.parseDouble(args[2]);
-				}
-				catch (NumberFormatException ex)
-				{
-					if (!"reset".equalsIgnoreCase(args[2]))
-					{
-						sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.WHITE + args[2] + ChatColor.GOLD + " is not a valid value for " + ChatColor.WHITE + "multiplier");
-						return;
-					}
-					
-					multiplier = 1.0;
-				}
-			
-				qt.setMultiplier(multiplier);
-				this.locationManager.save();
-				
-				sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " price multiplier set to " + ChatColor.WHITE + String.format("%.2f", qt.getMultiplier()));
-			}
-			else
+			// Not enough arguments for set, just display the multiplier instead
+			if (args.length < 3)
 			{
 				sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " price multiplier is " + ChatColor.WHITE + String.format("%.2f", qt.getMultiplier()));
+				return;
 			}
+			
+			try
+			{
+				// Check for a number first
+				multiplier = Double.parseDouble(args[2]);
+			}
+			catch (NumberFormatException ex)
+			{
+				if (!"reset".equalsIgnoreCase(args[2]))
+				{
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.WHITE + args[2] + ChatColor.GOLD + " is not a valid value for " + ChatColor.WHITE + "multiplier");
+					return;
+				}
+				
+				multiplier = 1.0;
+			}
+		
+			// Apply the new multiplier to the QT
+			qt.setMultiplier(multiplier);
+			this.locationManager.save();
+			
+			sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " price multiplier set to " + ChatColor.WHITE + String.format("%.2f", qt.getMultiplier()));
 		}
 		else
 		{
@@ -682,12 +740,19 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 
+	/**
+	 * Set the name of a QT based on the supplied command-line arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelWelcome(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
 		if (args.length > 1)
 		{
 			String qtName = args[1].toLowerCase();
+			String welcomeMessage = "";
 			
 			QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
 			if (qt == null)
@@ -696,7 +761,8 @@ public class QuickTravel extends JavaPlugin implements Listener
 				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set greeting: " + ChatColor.AQUA + qtName + ChatColor.GOLD + " does not exist!");
 				return;
 			}
-			
+
+			// Welcome message specified, so glue the remaining args together
 			if (args.length > 2)
 			{
 				StringBuilder welcomeBuilder = new StringBuilder();
@@ -704,16 +770,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 				for (int i = 2; i < args.length; i++)
 					welcomeBuilder.append(args[i]).append(" ");
 				
-				qt.setWelcomeMessage(welcomeBuilder.toString().trim());
-			}
-			else
-			{
-				qt.setWelcomeMessage("");
+				welcomeMessage = welcomeBuilder.toString().trim();
 			}
 			
+			// Apply the new welcome message to the QT
+			qt.setWelcomeMessage(welcomeMessage);
 			this.locationManager.save();
 			
-			sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " greeting set to " + ChatColor.WHITE + qt.getWelcomeMessage());
+			sender.sendMessage(ChatColor.AQUA + qtName + ChatColor.GOLD + " greeting set to " + ChatColor.WHITE + qt.getWelcomeMessage("<PlayerName>"));
 		}
 		else
 		{
@@ -723,6 +787,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 
+	/**
+	 * Set the type of QT based on the specified arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelType(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -748,6 +818,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 					if (args[3].equalsIgnoreCase("-w"))
 					{
 						world = this.getServer().getWorld(args[4]);
+
+						if (world == null)
+						{
+							sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: Specified world " + ChatColor.WHITE + args[4] + ChatColor.GOLD + " was not found");
+							return;
+						}
 					}
 					else
 					{
@@ -759,35 +835,31 @@ public class QuickTravel extends JavaPlugin implements Listener
 					}
 				}
 				
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					this.locationManager.setQTType(sender, world, type);
-					this.locationManager.save();
-					
-					sender.sendMessage("Done.");
-				}
-				else
+				if (this.locationManager.getLocationCount() < 1)
 				{
 					/* Player has not made any QTs yet */
 					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: You have not made any QTs yet!");
 					return;
 				}
+
+				this.locationManager.setQTType(sender, world, type);
+				this.locationManager.save();
+				
+				sender.sendMessage("Done.");
 			}
 			else
 			{
 				QuickTravelLocation qt = this.locationManager.getLocationByName(args[1]);
 				
-				if (qt != null)
-				{
-					this.locationManager.setQTType(sender, qt, type);
-					this.locationManager.save();
-				}
-				else
+				if (qt == null)
 				{
 					/* QT does not exist */
 					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not set type: " + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
 					return;
 				}
+
+				this.locationManager.setQTType(sender, qt, type);
+				this.locationManager.save();
 			}
 		}
 		else if (args.length == 2) // just display the QT type, don't change it
@@ -818,13 +890,20 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Set the radius of the QT, or set the QT to type "radius" based on the supplied command-line arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelRadius(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
 		World world = null;
-		boolean setRadius = false;
-		boolean setWorldEdit = false;
-		boolean viewWorldEdit = false;
+		boolean setRadius = false;      // The radius value was specified 
+		boolean setWorldEdit = false;   // The radius should be read from the current worldedit selection (also moves the QT)
+		boolean viewWorldEdit = false;  // The worldedit selection should be set to the current QT radius
+		
 		double radius = this.getOptions().getDefaultRadius();
 		
 		if (args.length >= 2)
@@ -896,6 +975,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 					}
 					else if (args[i].equalsIgnoreCase("-v") && !qtName.equals("*"))
 					{
+						// -v was specified so (attempt to) set the current worldedit selection to the QT radius
 						viewWorldEdit = true;
 					}
 					else if (args[i].equalsIgnoreCase("-r") && !qtName.equals("*"))
@@ -1000,6 +1080,10 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * @param player Player issuing the command
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelCuboid(Player player, String[] args)
 	{
 		if (args.length >= 2)
@@ -1190,13 +1274,21 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Moves a QuickTravel location to the player's current location
+	 * 
+	 * @param player Player issuing the command 
+	 * @param args Command-line arguments
+	 */
 	protected void moveQuickTravel(Player player, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
-		if (args.length == 2)
+		if (args.length > 1)
 		{
 			String qtName = args[1].toLowerCase();
 			QuickTravelLocation qt = this.locationManager.getLocationByName(qtName);
+			
+			boolean moveWorld = (args.length > 2 && args[2].toLowerCase().equals("-w"));
 			
 			if (qt == null)
 			{
@@ -1212,10 +1304,11 @@ public class QuickTravel extends JavaPlugin implements Listener
 				return;
 			}
 			
-			if (!player.getWorld().equals(qt.getWorld()))
+			if (!player.getWorld().equals(qt.getWorld()) && !moveWorld)
 			{
 				/* Incorrect world */
 				player.sendMessage(ChatColor.RED + "[Error]" + ChatColor.GOLD + " Could not move: You are not on the correct World!");
+				player.sendMessage(ChatColor.GOLD + "Use " + ChatColor.WHITE + "/qt move <name> -w" + ChatColor.GOLD + " to force QT to be moved to this world");
 				return;
 			}
 			
@@ -1231,6 +1324,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Deletes the specified quick travel entry
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void deleteQuickTravel(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -1259,6 +1358,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 
+	/**
+	 * Set the destination for the specified QT
+	 * 
+	 * @param player Player issuing the command
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelDestination(Player player, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -1294,6 +1399,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Sets the quick travel enabled (or disabled) state based on the supplied command-line arguments
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelEnabled(CommandSender sender, String[] args)
 	{
 		if (args.length > 1)
@@ -1430,6 +1541,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Sets the price of the specifed QT from the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelPrice(CommandSender sender, String[] args)
 	{
 		/* Get arguments and deal with appropriately */
@@ -1509,6 +1626,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
+	/**
+	 * Sets the "free" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelFree(CommandSender sender, String[] args)
 	{
 		if (args.length < 3)
@@ -1522,6 +1645,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.setQuickTravelProperty(sender, args, "free");
 	}
 
+	/**
+	 * Sets the "discovery" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelDiscovery(CommandSender sender, String[] args)
 	{
 		if (args.length < 3)
@@ -1535,6 +1664,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.setQuickTravelProperty(sender, args, "discovery");
 	}
 
+	/**
+	 * Sets the "require permission" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelPermission(CommandSender sender, String[] args)
 	{
 		if (args.length < 3)
@@ -1548,6 +1683,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.setQuickTravelProperty(sender, args, "perms");
 	}
 	
+	/**
+	 * Sets the "multiworld" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelMultiworld(CommandSender sender, String[] args)
 	{
 		if (args.length < 3)
@@ -1561,6 +1702,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.setQuickTravelProperty(sender, args, "multiworld");
 	}
 
+	/**
+	 * Sets the "hidden from dynmap" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelHidden(CommandSender sender, String[] args)
 	{
 		if (args.length < 3)
@@ -1576,6 +1723,8 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
+	 * Sets a boolean flag by name on the specified QT
+	 * 
 	 * @param sender
 	 * @param args
 	 * @param propertyName
@@ -1678,6 +1827,12 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.locationManager.save();
 	}
 	
+	/**
+	 * Sets a config option (admin only)
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
 	protected void setQuickTravelOption(CommandSender sender, String[] args)
 	{
 		if (args.length < 2)
@@ -1700,18 +1855,18 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
-	 * @param sender
-	 * @param args
-	 * @return
+	 * Lists quicktravels to the specified sender
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
 	 */
-	protected boolean listQuickTravels(CommandSender sender, String[] args)
+	protected void listQuickTravels(CommandSender sender, String[] args)
 	{
 		/* "/qt list" passed Get arguments and deal with appropriately */
 		if (args.length == 1)
 		{
 			/* No arguments, display list */
 			this.listQuickTravels(sender, 1, true);
-			return true;
 		}
 		else if (args.length == 2)
 		{
@@ -1724,13 +1879,11 @@ public class QuickTravel extends JavaPlugin implements Listener
 					i = 1;
 				}
 				this.listQuickTravels(sender, i, true);
-				return true;
 			}
 			catch (NumberFormatException e)
 			{
 				sender.sendMessage("'" + args[1] + "' is not a number, displaying page 1.");
 				this.listQuickTravels(sender, 1, true);
-				return true;
 			}
 		}
 		else
@@ -1738,10 +1891,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 			/* Invalid arguments, throw info message. */
 			sender.sendMessage("Shows a list of all QT points and related info.");
 			sender.sendMessage("/qt list <page (optional)>");
-			return true;
 		}
 	}
 
+	/**
+	 * @param sender Player or console issuing the command
+	 * @param page Page to display parsed from args
+	 * @param listAll True to list all QT's rather than only those which are accessible
+	 */
 	protected void listQuickTravels(CommandSender sender, int page, boolean listAll)
 	{
 		if (listAll || !(sender instanceof Player))
@@ -1751,50 +1908,38 @@ public class QuickTravel extends JavaPlugin implements Listener
 		else
 		{
 			Player player = (Player)sender;
+			QuickTravelLocation origin = this.locationManager.getLocationAt(player.getLocation());
 			
-			QuickTravelLocation qt = this.locationManager.getLocationAt(player.getLocation());
-			
-			if (qt != null || this.getOptions().canQtFromAnywhere(player))
-			{
-				List<QuickTravelLocation> destList = new ArrayList<QuickTravelLocation>();
-				
-				player.sendMessage(ChatColor.BLUE + "Current Location: " + (qt != null ? ChatColor.AQUA + qt.getName() : ChatColor.GOLD + "<none>"));
-				player.sendMessage(ChatColor.BLUE + "From here you can QuickTravel to:");
-				
-				if (this.locationManager.getLocationCount() > 0)
-				{
-					for (QuickTravelLocation target : this.locationManager.getLocations())
-					{
-						if (target != qt && this.checkPlayerCanTravelFromTo(player, qt, target, target.getName(), false))
-						{
-							destList.add(target);
-						}
-					}
-						
-					if (destList.size() < 1)
-					{
-						player.sendMessage("You cannot QuickTravel anywhere yet.");
-					}
-					else
-					{
-						this.displayList(player, destList, qt, page);
-					}
-				}
-				else
-				{
-					player.sendMessage("You cannot QuickTravel anywhere yet.");
-				}
-			}
-			else
+			if (origin == null && !this.getOptions().canQtFromAnywhere(player))
 			{
 				player.sendMessage(ChatColor.BLUE + "You are not at a QuickTravel point.");
+				return;
 			}
+		
+			List<QuickTravelLocation> destinationList = new ArrayList<QuickTravelLocation>();
+			
+			player.sendMessage(ChatColor.BLUE + "Current Location: " + (origin != null ? ChatColor.AQUA + origin.getName() : ChatColor.GOLD + "<none>"));
+			player.sendMessage(ChatColor.BLUE + "From here you can QuickTravel to:");
+			
+			for (QuickTravelLocation target : this.locationManager.getLocations())
+			{
+				if (target != origin && this.checkPlayerCanTravelFromTo(player, origin, target, target.getName(), false))
+					destinationList.add(target);
+			}
+				
+			if (destinationList.size() < 1)
+			{
+				player.sendMessage("You cannot QuickTravel anywhere yet.");
+				return;
+			}
+			
+			this.displayList(player, destinationList, origin, page);
 		}
 	}
 
 	/**
-	 * @param sender
-	 * @param page
+	 * @param sender Player or console issuing the command
+	 * @param page Page to display parsed from args
 	 */
 	private void displayFullList(CommandSender sender, int page)
 	{
@@ -1842,9 +1987,15 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 	}
 	
-	private void displayList(Player player, List<QuickTravelLocation> destList, QuickTravelLocation qt, int page)
+	/**
+	 * @param player
+	 * @param destinationList
+	 * @param origin
+	 * @param page
+	 */
+	private void displayList(Player player, List<QuickTravelLocation> destinationList, QuickTravelLocation origin, int page)
 	{
-		int pages = (int)(Math.ceil((double)destList.size() / (double)8));
+		int pages = (int)(Math.ceil((double)destinationList.size() / (double)8));
 		
 		if (page > pages)
 		{
@@ -1856,7 +2007,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		int end = start + 7;
 		int listIndex = 0;
 
-		for (QuickTravelLocation destination : destList)
+		for (QuickTravelLocation destination : destinationList)
 		{
 			listIndex++;
 			
@@ -1867,9 +2018,9 @@ public class QuickTravel extends JavaPlugin implements Listener
 
 				double travelCost = 0.0;
 				
-				if (qt != null)
+				if (origin != null)
 				{
-					travelCost = this.calculateChargeFromTo(player, qt, destination);
+					travelCost = this.calculateChargeFromTo(player, origin, destination);
 				}
 				else if (this.getOptions().canQtFromAnywhere(player))
 				{
@@ -1899,6 +2050,10 @@ public class QuickTravel extends JavaPlugin implements Listener
 		player.sendMessage(pageString);
 	}
 	
+	/**
+	 * @param player
+	 * @return
+	 */
 	protected List<QuickTravelLocation> getAvailableDestinations(Player player)
 	{
 		List<QuickTravelLocation> destList = new ArrayList<QuickTravelLocation>();
@@ -1955,6 +2110,16 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return true;
 	}
 	
+	/**
+	 * Sanity checks for a specified journey, checks each travel criterion and returns true if everything checks out, sends an error to the player if required
+	 * 
+	 * @param player Player to test
+	 * @param origin Origin QT, null if in wilderness
+	 * @param target Target QT, should not be null but will trigger a false response if it is
+	 * @param targetName Name of the target QT
+	 * @param showMessage True to echo a message on failure (false when testing for other reasons such as listing QT's)
+	 * @return True if travel is acceptable, false if any check fails
+	 */
 	private boolean checkPlayerCanTravelFromTo(Player player, QuickTravelLocation origin, QuickTravelLocation target, String targetName, boolean showMessage)
 	{
 		if (target == null)
@@ -2028,6 +2193,14 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return true;
 	}
 	
+	/**
+	 * Calculate a charge based on distance between origin QT and target QT for the specified player
+	 * 
+	 * @param player
+	 * @param origin
+	 * @param target
+	 * @return
+	 */
 	private int calculateCharge(Player player, QuickTravelLocation origin, QuickTravelLocation target)
 	{
 		if (target != null)
@@ -2038,22 +2211,35 @@ public class QuickTravel extends JavaPlugin implements Listener
 		return 0;
 	}
 	
+	/**
+	 * @param s
+	 * @return
+	 */
 	private static boolean containsLetter(String s)
 	{
 		if (s == null || s.length() == 0) return false;
 		return Pattern.compile("[a-z]").matcher(s).find();
 	}
 	
+	/**
+	 * @param msg
+	 */
 	public static void info(String msg)
 	{
 		log.info(String.format("[%s] %s", LOG_PREFIX, msg));
 	}
 	
+	/**
+	 * @param msg
+	 */
 	public static void warning(String msg)
 	{
 		log.warning(String.format("[%s] %s", LOG_PREFIX, msg));
 	}
 	
+	/**
+	 * @param msg
+	 */
 	public static void severe(String msg)
 	{
 		log.severe(String.format("[%s] %s", LOG_PREFIX, msg));
