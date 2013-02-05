@@ -443,7 +443,7 @@ public class QuickTravelCommandHandler implements CommandExecutor, TabCompleter
 		commands.add("move");
 		commands.add("dest");
 		commands.add("enable");
-		commands.add("dissable");
+		commands.add("disable");
 		commands.add("delete");
 		commands.add("price");
 		commands.add("free");
