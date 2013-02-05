@@ -127,6 +127,16 @@ public class QuickTravelLocation
 	private boolean hiddenFromDynmap = false;
 	
 	/**
+	 * True if the QT can only be used to travel to other QT's but can't be a destination itself
+	 */
+	private boolean outgoingOnly = false;
+	
+	/**
+	 * If this QT auto-triggers when the user walks onto it then this is the QT to travel to, otherwise null
+	 */
+	private QuickTravelLocation autoTriggerDestination = null;
+	
+	/**
 	 * @param name Name for this quicktravel location
 	 * @param config Configuration to read the location data from
 	 * @param defaultRadius default configured radius
@@ -185,7 +195,8 @@ public class QuickTravelLocation
 		this.multiworld              = config.getBoolean("multiworld", multiworldByDefault);
 		this.multiplier              = config.getDouble("multiplier", 1.0);
 		this.hiddenFromDynmap        = config.getBoolean("hidden", false);
-		this.useCuboidHeightModifier = config.getBoolean("hidden", false);
+		this.useCuboidHeightModifier = config.getBoolean("use-height-modifier", true);
+		this.outgoingOnly            = config.getBoolean("outgoing", false);
 		
 		this.primary                 = this.parseLocation(config.getConfigurationSection("coords.primary"), world, null);
 		this.secondary               = this.parseLocation(config.getConfigurationSection("coords.secondary"), world, null);
@@ -215,6 +226,13 @@ public class QuickTravelLocation
 				if (chargeFromEntry != null) this.chargeFrom.put(chargeFromEntry, (Double)chargeFromConfigEntry.getValue());
 			}
 		}
+
+		String autoTriggerDestinationName = config.getString("auto", "");
+
+		if (autoTriggerDestinationName.length() > 0)
+		{
+			this.autoTriggerDestination  = qtProvider.getLocationByName(autoTriggerDestinationName);
+		}
 	}
 	
 	/**
@@ -234,6 +252,13 @@ public class QuickTravelLocation
 		config.set("multiworld",          this.multiworld);
 		config.set("multiplier",          this.multiplier);
 		config.set("hidden",              this.hiddenFromDynmap);
+		config.set("use-height-modifier", this.useCuboidHeightModifier);
+		config.set("outgoing",            this.outgoingOnly);
+		
+		if (this.autoTriggerDestination != null)
+		{
+			config.set("auto", this.autoTriggerDestination.getName());
+		}
 		
 		// Fall back to default world if something has gone wrong
 		String worldName = Bukkit.getWorlds().get(0).getName();
@@ -301,6 +326,8 @@ public class QuickTravelLocation
 		this.multiplier              = 1.0;
 		this.hiddenFromDynmap        = false;
 		this.useCuboidHeightModifier = true;
+		this.autoTriggerDestination  = null;
+		this.outgoingOnly            = false;
 		
 		this.setRadius(defaultRadius);
 		
@@ -427,7 +454,43 @@ public class QuickTravelLocation
 	{
 		this.hiddenFromDynmap = hiddenFromDynmap;
 	}
+	
+	/**
+	 * @return
+	 */
+	public boolean isOutgoingOnly()
+	{
+		return outgoingOnly;
+	}
+	
+	/**
+	 * @param outgoingOnly
+	 */
+	public void setOutgoingOnly(boolean outgoingOnly)
+	{
+		this.outgoingOnly = outgoingOnly;
+	}
 
+	/**
+	 * Get the destination to travel to when walking onto this QT
+	 * 
+	 * @return
+	 */
+	public QuickTravelLocation getAutoTriggerDestination()
+	{
+		return this.autoTriggerDestination;
+	}
+	
+	/**
+	 * Set a destination to travel to when walking on this QT
+	 * 
+	 * @param autoTriggerDestination
+	 */
+	public void setAutoTriggerDestination(QuickTravelLocation autoTriggerDestination)
+	{
+		this.autoTriggerDestination = autoTriggerDestination;
+	}
+	
 	/**
 	 * @return the world
 	 */
@@ -473,7 +536,7 @@ public class QuickTravelLocation
 	{
 		if (this.requirePermissions)
 		{
-			return hasPermission(player);
+			return this.hasPermission(player);
 		}
 		
 		return true;

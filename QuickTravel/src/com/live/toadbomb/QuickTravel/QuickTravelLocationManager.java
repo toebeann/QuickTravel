@@ -10,6 +10,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -45,7 +46,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	/**
 	 * ALl the locations that we know about!
 	 */
-	private Map<String, QuickTravelLocation> locations = new Hashtable<String, QuickTravelLocation>();
+	private Map<String, QuickTravelLocation> locations = new TreeMap<String, QuickTravelLocation>();
 	
 	/**
 	 * List of players warming up
@@ -295,7 +296,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	 * 
 	 * @param sender player requesting the property change
 	 * @param world world to set properties in
-	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms" and "multiworld"
+	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms", "multiworld", "hidden" and "outgoing"
 	 * @param toggle toggle the propery values
 	 * @param newValue value to set if toggle is false
 	 */
@@ -306,6 +307,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, world, toggle, newValue);
 		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, world, toggle, newValue);
 		else if (propertyName.equals("hidden"))     this.setQTHiddenFromDynmap   (sender, world, toggle, newValue);
+		else if (propertyName.equals("outgoing"))   this.setQTOutgoingOnly       (sender, world, toggle, newValue);
 	}
 	
 	/**
@@ -313,7 +315,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	 * 
 	 * @param sender player requesting the property change
 	 * @param qt QT to set the property on
-	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms" and "multiworld"
+	 * @param propertyName name of the property to set, valid property names are "free", "discovery", "perms", "multiworld", "hidden" and "outgoing"
 	 * @param toggle toggle the propery values
 	 * @param newValue value to set if toggle is false
 	 * @param world world to set properties in
@@ -325,6 +327,7 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 		else if (propertyName.equals("perms"))      this.setQTRequiresPermissions(sender, qt, toggle, newValue);
 		else if (propertyName.equals("multiworld")) this.setQTMultiWorld         (sender, qt, toggle, newValue);
 		else if (propertyName.equals("hidden"))     this.setQTHiddenFromDynmap   (sender, qt, toggle, newValue);
+		else if (propertyName.equals("outgoing"))   this.setQTOutgoingOnly       (sender, qt, toggle, newValue);
 	}
 	
 	/**
@@ -536,31 +539,59 @@ public class QuickTravelLocationManager implements QuickTravelLocationProvider, 
 	}
 	
 	/**
-	 * Sets the multiworld flag of all QT's in the specified world
+	 * Sets the hidden from dynmap flag of all QT's in the specified world
 	 * 
 	 * @param sender
 	 * @param world World to set or null to set all
 	 * @param toggle
-	 * @param multiWorld
+	 * @param hidden
 	 */
-	public void setQTHiddenFromDynmap(CommandSender sender, World world, boolean toggle, boolean multiWorld)
+	public void setQTHiddenFromDynmap(CommandSender sender, World world, boolean toggle, boolean hidden)
 	{
 		for (QuickTravelLocation qt : this.locations.values())
-			if (qt.isInWorld(world)) this.setQTHiddenFromDynmap(sender, qt, toggle, multiWorld);
+			if (qt.isInWorld(world)) this.setQTHiddenFromDynmap(sender, qt, toggle, hidden);
 	}
 	
 	/**
-	 * Sets the multiworld flag of the specified QT
+	 * Sets the hidden from dynmap flag of the specified QT
 	 * 
 	 * @param sender
 	 * @param qt
 	 * @param toggle
-	 * @param multiWorld
+	 * @param hidden
 	 */
-	public void setQTHiddenFromDynmap(CommandSender sender, QuickTravelLocation qt, boolean toggle, boolean multiWorld)
+	public void setQTHiddenFromDynmap(CommandSender sender, QuickTravelLocation qt, boolean toggle, boolean hidden)
 	{
-		qt.setHiddenFromDynmap(toggle ? !qt.isMultiworld() : multiWorld);
+		qt.setHiddenFromDynmap(toggle ? !qt.isHiddenFromDynmap() : hidden);
 		sender.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " is hidden: " + ChatColor.GOLD + (qt.isHiddenFromDynmap() ? "true (hidden)" : "false (visible)") + ChatColor.WHITE + ".");
+	}
+	
+	/**
+	 * Sets the outgoing only flag of all QT's in the specified world
+	 * 
+	 * @param sender
+	 * @param world World to set or null to set all
+	 * @param toggle
+	 * @param outgoingOnly
+	 */
+	public void setQTOutgoingOnly(CommandSender sender, World world, boolean toggle, boolean outgoingOnly)
+	{
+		for (QuickTravelLocation qt : this.locations.values())
+			if (qt.isInWorld(world)) this.setQTOutgoingOnly(sender, qt, toggle, outgoingOnly);
+	}
+	
+	/**
+	 * Sets the outgoing only flag of the specified QT
+	 * 
+	 * @param sender
+	 * @param qt
+	 * @param toggle
+	 * @param outgoingOnly
+	 */
+	public void setQTOutgoingOnly(CommandSender sender, QuickTravelLocation qt, boolean toggle, boolean outgoingOnly)
+	{
+		qt.setOutgoingOnly(toggle ? !qt.isOutgoingOnly() : outgoingOnly);
+		sender.sendMessage(ChatColor.AQUA + qt.getName() + ChatColor.WHITE + " is outgoing only: " + ChatColor.GOLD + (qt.isOutgoingOnly() ? "true" : "false") + ChatColor.WHITE + ".");
 	}
 
 	/**

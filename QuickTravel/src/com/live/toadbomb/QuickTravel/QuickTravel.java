@@ -221,6 +221,9 @@ public class QuickTravel extends JavaPlugin implements Listener
 		// If the player is standing on a QT 
 		if (qt != null && qt.checkPermission(player))
 		{
+			boolean playerArrivedAtQT = !qt.equals(this.playerAt.get(playerName));
+			QuickTravelLocation autoQT = qt.getAutoTriggerDestination();
+			
 			// If the player hasn't previously discovered this QT, discover it now
 			if (!qt.isDiscoveredBy(player))
 			{
@@ -230,20 +233,25 @@ public class QuickTravel extends JavaPlugin implements Listener
 				
 				// Notify the player
 				player.sendMessage(ChatColor.BLUE + "You have discovered " + ChatColor.AQUA + qt + ChatColor.BLUE + "!");
-				player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
+				if (autoQT == null) player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 			}
 			else
 			{
 				// If the *current* qt is different to the last qt the player was at, then notify the player they have arrived
-				if (!qt.equals(this.playerAt.get(playerName)))
+				if (playerArrivedAtQT)
 				{
 					player.sendMessage(qt.getWelcomeMessage(playerName));
-					player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
+					if (autoQT == null) player.sendMessage(ChatColor.WHITE + "Type " + ChatColor.GOLD + "/qt" + ChatColor.WHITE + " for QuickTravel.");
 				}
-				
-				// Store the player's current location
-				this.playerAt.put(playerName, qt);
 			}
+			
+			if (autoQT != null && playerArrivedAtQT)
+			{
+				this.doQuickTravel(player, qt, autoQT, autoQT.getName(), false);
+			}
+			
+			// Store the player's current location
+			this.playerAt.put(playerName, qt);
 		}
 		else
 		{
@@ -282,7 +290,6 @@ public class QuickTravel extends JavaPlugin implements Listener
 	 * @param player Player to QT
 	 * @param targetQtName Name of a target QT to attempt to travel to 
 	 */
-	@SuppressWarnings("cast")
 	protected void quickTravel(Player player, String targetQtName)
 	{
 		try
@@ -294,18 +301,25 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 		catch (NumberFormatException e) {}
 		
-		// Check player's cooldown state, if they are cooling down then refuse the teleport
-		int coolDownTicksRemaining = this.locationManager.getPlayerTeleportCooldown(player);
-		if (coolDownTicksRemaining > 0)
-		{
-			float secondsRemaining = (float)coolDownTicksRemaining / 20.0F;
-			player.sendMessage(ChatColor.BLUE + "You must wait another " + ChatColor.GOLD + String.format("%.1f", secondsRemaining) + ChatColor.BLUE + " seconds to QuickTravel again!");
-			return;
-		}
-		
 		// Get the originating QT (may be null if player is in the wilderness) and the target qt from the args 
 		QuickTravelLocation origin = this.locationManager.getLocationAt(player.getLocation());
 		QuickTravelLocation target = this.locationManager.getLocationByName(targetQtName); 
+		
+		this.doQuickTravel(player, origin, target, targetQtName, true);
+	}
+
+	/**
+	 * Try to quicktravel from the specified origin to the specified target
+	 * 
+	 * @param player
+	 * @param origin
+	 * @param target
+	 * @param targetQtName
+	 */
+	private void doQuickTravel(Player player, QuickTravelLocation origin, QuickTravelLocation target, String targetQtName, boolean listIfInvalid)
+	{
+		// Check player's cooldown state, if they are cooling down then refuse the teleport
+		if (!this.checkCoolDown(player)) return;
 		
 		/* Argument presumed to be a request to QT
 		 * Check QT is valid */
@@ -343,7 +357,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 				this.locationManager.scheduleQuickTravel(player, travelCost, origin, target, this.wildernessDepartureFX);
 			}
 		}
-		else
+		else if (listIfInvalid)
 		{
 			/*
 			 * It has been determined that this is an invalid QT.
@@ -351,6 +365,23 @@ public class QuickTravel extends JavaPlugin implements Listener
 			 */
 			this.listQuickTravels(player, 1, false);
 		}
+	}
+
+	/**
+	 * @param player
+	 */
+	@SuppressWarnings("cast")
+	private boolean checkCoolDown(Player player)
+	{
+		int coolDownTicksRemaining = this.locationManager.getPlayerTeleportCooldown(player);
+		if (coolDownTicksRemaining > 0)
+		{
+			float secondsRemaining = (float)coolDownTicksRemaining / 20.0F;
+			player.sendMessage(ChatColor.BLUE + "You must wait another " + ChatColor.GOLD + String.format("%.1f", secondsRemaining) + ChatColor.BLUE + " seconds to QuickTravel again!");
+			return false;
+		}
+		
+		return true;
 	}
 
 	/**
@@ -1723,6 +1754,26 @@ public class QuickTravel extends JavaPlugin implements Listener
 	}
 
 	/**
+	 * Sets the "outgoing only" flag on the specified QT
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
+	protected void setQuickTravelOutgoingOnly(CommandSender sender, String[] args)
+	{
+		if (args.length < 3)
+		{
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets whether the selected QT can only accepts outgoing QTs");
+			sender.sendMessage("/qt outgoing <name | *> <true | false | toggle>");
+			return;
+		}
+		
+		this.setQuickTravelProperty(sender, args, "outgoing");
+		this.onLocationsUpdated();
+	}
+
+	/**
 	 * Sets a boolean flag by name on the specified QT
 	 * 
 	 * @param sender
@@ -1827,6 +1878,50 @@ public class QuickTravel extends JavaPlugin implements Listener
 		this.locationManager.save();
 	}
 	
+	/**
+	 * Sets the specifed QT's auto-trigger destination
+	 * 
+	 * @param sender Player issuing the command or console
+	 * @param args Command-line arguments
+	 */
+	protected void setQuickTravelAutoTrigger(CommandSender sender, String[] args)
+	{
+		if (args.length > 1)
+		{
+			QuickTravelLocation fromQt = this.locationManager.getLocationByName(args[1]);
+			QuickTravelLocation toQt = null;
+			
+			if (args.length > 2)
+			{
+				toQt = this.locationManager.getLocationByName(args[2]);
+
+				if (toQt == null)
+				{
+					sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.AQUA + args[2] + ChatColor.GOLD + " does not exist!");
+				}
+			}
+			
+			if (fromQt != null)
+			{
+				fromQt.setAutoTriggerDestination(toQt);
+				sender.sendMessage("Auto-trigger destination for " + ChatColor.AQUA + fromQt.getName() + ChatColor.WHITE + " set to " + ChatColor.AQUA + (toQt == null ? "none" : toQt.getName()));
+			
+				this.locationManager.save();
+			}
+			else
+			{
+				sender.sendMessage(ChatColor.RED + "[Error]" + ChatColor.AQUA + args[1] + ChatColor.GOLD + " does not exist!");
+			}
+		}
+		else
+		{
+			/* Invalid arguments, throw info message. */
+			sender.sendMessage("Sets the auto-trigger destination for QT <a> to <b>. If <b> is not specified then the auto-trigger is disabled.");
+			sender.sendMessage("/qt trigger <a> <b>");
+			return;
+		}
+	}
+
 	/**
 	 * Sets a config option (admin only)
 	 * 
@@ -2143,7 +2238,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 			return false;
 		}
 		
-		if (!target.checkPermission(player))
+		if (!target.checkPermission(player) || (target.isOutgoingOnly() && !player.isOp()))
 		{
 			if (showMessage)
 			{
@@ -2181,7 +2276,7 @@ public class QuickTravel extends JavaPlugin implements Listener
 		}
 		
 		/* Discovered checks */
-		if ((target.requiresDiscovery() && !target.isDiscoveredBy(player)) || (this.getOptions().permissionsOverride() && target.hasPermission(player)))
+		if ((target.requiresDiscovery() && !target.isDiscoveredBy(player)) && !(this.getOptions().permissionsOverride() && target.hasPermission(player)))
 		{
 			if (showMessage)
 			{

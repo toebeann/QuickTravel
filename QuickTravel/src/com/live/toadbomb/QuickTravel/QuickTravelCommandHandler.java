@@ -381,6 +381,30 @@ public class QuickTravelCommandHandler implements CommandExecutor, TabCompleter
 				this.plugin.listQuickTravels(sender, args);
 				return true;
 			}
+			else if (commandName.equalsIgnoreCase("trigger"))
+			{
+				/* "/qt trigger" passed */
+				if (!sender.hasPermission("qt.admin.trigger"))
+				{
+					this.notAuthorised(sender, commandName);
+					return true;
+				}
+				
+				this.plugin.setQuickTravelAutoTrigger(sender, args);
+				return true;
+			}
+			else if (commandName.equalsIgnoreCase("outgoing"))
+			{
+				/* "/qt outgoing" passed */
+				if (!sender.hasPermission("qt.admin.outgoing"))
+				{
+					this.notAuthorised(sender, commandName);
+					return true;
+				}
+				
+				this.plugin.setQuickTravelOutgoingOnly(sender, args);
+				return true;
+			}
 			else if (args.length == 1)
 			{
 				if (!(sender instanceof Player))
@@ -419,7 +443,7 @@ public class QuickTravelCommandHandler implements CommandExecutor, TabCompleter
 		commands.add("move");
 		commands.add("dest");
 		commands.add("enable");
-		commands.add("disable");
+		commands.add("dissable");
 		commands.add("delete");
 		commands.add("price");
 		commands.add("free");
@@ -432,5 +456,7 @@ public class QuickTravelCommandHandler implements CommandExecutor, TabCompleter
 		commands.add("reload");
 		commands.add("multiplier");
 		commands.add("hidden");
+		commands.add("trigger");
+		commands.add("outgoing");
 	}
 }
