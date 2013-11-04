@@ -12,3 +12,4 @@ price-multiplier: 0.8
 multiworld-multiplier: 1.2
 multiworld-tax: 500
 free-from-qts: false
+enable-safety-checks: false
